@@ -119,14 +119,14 @@ RG 소유 태그는 `workshop=rbac-event`, `runId={runId}`, `managedBy=workshop`
 Azure 리소스 조회는 ARM 응답의 `properties` 등 명시적 구조를 사용하고 CLI 표시용 속성 평탄화에 의존하지 않는다.
 삭제 확인 문구는 `DELETE {runId} FROM {subscriptionId}`이다.
 
-- [ ] **Step 1:** 정상 test-event가 자기 역할을 생성·삭제하고 상태와 부재 증거를 남기는 테스트를 작성해 RED → GREEN을 수행한다.
-- [ ] **Step 2:** 기존 Reader 보존, 생성 응답 유실 뒤 예약 GUID 정리, 조회 403, 응답의 사용자·역할·scope 불일치 및 삭제 실패 테스트를 추가해 RED → GREEN을 수행한다. 생성 실패도 성공으로 숨기지 않는다.
-- [ ] **Step 3:** verify의 정상 및 수집 지연 테스트를 작성한다. 실제 SDK나 서비스가 아니라 `run_az`와 시계 경계만 모의 처리하고, 저장된 증거·요약을 검사한다.
-- [ ] **Step 4:** 다른 할당 로그만 존재하는 경우, `Success=false`, eventId와 Activity correlationId가 서로 다른 정상 이벤트, 지표 null 및 잘못된 UTC timespan, 시간 초과 테스트를 추가해 RED → GREEN을 수행한다.
-- [ ] **Step 5:** 증거 요약에 처리 시각·수집 시각, 함수 실행 ID, 대상 할당, 모니터링 범위와 표본 없는 지표를 구분한다. 증거에 전체 claims나 키가 들어가지 않게 한다.
-- [ ] **Step 6:** cleanup의 preview·확인 거부·정상 삭제 테스트를 작성해 RED → GREEN을 수행한다. 먼저 전체 소유권을 검사하고 자기 테스트 역할, 확인된 구독 Reader가 있으면 그 역할, 전용 RG 순으로 정리한다.
-- [ ] **Step 7:** 다른 실행 태그, 조회 403, 배포 출력 없는 부분 실패, 이미 없는 RG, RG 밖에 남은 기록된 Reader와 삭제 대기 초과 테스트를 추가한다. 확인되지 않은 역할은 삭제하지 않고 오류를 알린다.
-- [ ] **Step 8:** 전체 unittest와 `git diff --check` PASS 후 관련 파일만 커밋한다.
+- [x] **Step 1:** 정상 test-event가 자기 역할을 생성·삭제하고 상태와 부재 증거를 남기는 테스트를 작성해 RED → GREEN을 수행한다.
+- [x] **Step 2:** 기존 Reader 보존, 생성 응답 유실 뒤 예약 GUID 정리, 조회 403, 응답의 사용자·역할·scope 불일치 및 삭제 실패 테스트를 추가해 RED → GREEN을 수행한다. 생성 실패도 성공으로 숨기지 않는다.
+- [x] **Step 3:** verify의 정상 및 수집 지연 테스트를 작성한다. 실제 SDK나 서비스가 아니라 `run_az`와 시계 경계만 모의 처리하고, 저장된 증거·요약을 검사한다.
+- [x] **Step 4:** 다른 할당 로그만 존재하는 경우, `Success=false`, eventId와 Activity correlationId가 서로 다른 정상 이벤트, 지표 null 및 잘못된 UTC timespan, 시간 초과 테스트를 추가해 RED → GREEN을 수행한다.
+- [x] **Step 5:** 증거 요약에 처리 시각·수집 시각, 함수 실행 ID, 대상 할당, 모니터링 범위와 표본 없는 지표를 구분한다. 증거에 전체 claims나 키가 들어가지 않게 한다.
+- [x] **Step 6:** cleanup의 preview·확인 거부·정상 삭제 테스트를 작성해 RED → GREEN을 수행한다. 먼저 전체 소유권을 검사하고 자기 테스트 역할, 확인된 구독 Reader가 있으면 그 역할, 전용 RG 순으로 정리한다.
+- [x] **Step 7:** 다른 실행 태그, 조회 403, 배포 출력 없는 부분 실패, 이미 없는 RG, RG 밖에 남은 기록된 Reader와 삭제 대기 초과 테스트를 추가한다. 확인되지 않은 역할은 삭제하지 않고 오류를 알린다.
+- [x] **Step 8:** 전체 unittest와 `git diff --check` PASS 후 관련 파일만 커밋한다.
 
 ### Task 4: 한국어 단계별 교재와 문서 검증
 
