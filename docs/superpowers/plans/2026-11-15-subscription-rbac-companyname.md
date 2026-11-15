@@ -10,6 +10,12 @@
 
 **Spec:** `docs\superpowers\specs\2026-11-15-subscription-rbac-companyname-design.md`
 
+## 실행 상태
+
+2026-11-15 사용자가 실제 Azure 배포와 임시 Reader 테스트를 보류했다. 작업 1은 완료됐고 Python 3.11 환경에서 테스트 14개가 통과했다. 작업 2의 Bicep과 배포 안내는 작성됐으며 로컬 Bicep 컴파일은 통과했지만 what-if, 배포 및 실제 이벤트 수신은 수행하지 않았다. Checkov는 미설치로 실행하지 못했다.
+
+실제 이벤트 수신 관문이 아직 통과되지 않았으므로 작업 3~4의 ARM·Graph 보강 조회와 companyName 결과 처리는 구현하지 않았다. 작업 브랜치 `feat/rbac-companyname`과 격리 워크트리를 유지하며, 사용자 재승인 전에는 Azure 리소스나 역할 할당을 변경하지 않는다.
+
 ## Global Constraints
 
 - 이벤트 감지에는 Event Grid를 사용한다.
