@@ -42,7 +42,7 @@
 | `tests\test_workshop_artifacts.py` | 배포 출력 경계, 소스 ZIP과 비공개 자료 제외 |
 | `tests\test_workshop_lifecycle.py` | 실제 역할 테스트의 모의 Azure 경계, 증거 판정, 정리 안전성 |
 | `tests\test_workshop_docs.py` | 문서 링크, 코드 펜스, Bash 구문, 필수 배포 옵션 일관성 |
-| `infra\main.bicep` | RG 소유 태그, 구독 Reader 선택 옵션과 정확한 정리 출력 |
+| `infra\main.bicep` | 태그를 보존하는 기존 RG 모드, 구독 Reader 선택 옵션과 정확한 정리 출력 |
 | `README.md`, `docs\00-azure-rbac-basics.md` ~ `docs\06-cleanup-production.md` | 학습 진입점과 번호형 실습 |
 | `docs\development.md` | 기존 Windows 개발 안내와 검증 한계 |
 | `.gitignore`, `.funcignore` | 상태·증거·개발 환경을 Git과 배포 ZIP에서 제외 |
@@ -86,19 +86,19 @@ RG 소유 태그는 `workshop=rbac-event`, `runId={runId}`, `managedBy=workshop`
 
 **Produces**
 
-- Bicep `resourceGroupTags object = {}`, `assignSubscriptionReader bool = true`. 워크숍은 `assignSubscriptionReader=false`를 전달한다.
+- Bicep `createResourceGroup bool = true`, `assignSubscriptionReader bool = true`. 워크숍은 먼저 소유 태그가 있는 새 RG를 만들고 두 옵션 모두 false로 전달한다.
 - Bicep `subscriptionReaderAssignmentId` 출력은 역할을 생성할 때만 정확한 ID, 아니면 빈 문자열이다. 기존 함수·관리 ID·모니터링·토픽 출력은 유지한다.
 - `capture_deployment(state_file: Path, deployment_name: str) -> None`: 해당 실행의 허용된 배포 이름과 `Succeeded`를 확인하고 경계 검증된 출력만 저장한다.
 - `package_sources(root: Path, destination: Path) -> list[str]`: 허용된 런타임 소스만 ZIP 루트에 넣는다.
 - CLI: `capture STATE_FILE --deployment NAME`, `package STATE_FILE`. package stdout은 생성한 ZIP 경로이며 증거 디렉터리는 `.workshop-state/{runId}/`이다.
 
-- [ ] **Step 1:** 모의 성공 배포 출력의 capture와 ZIP 생성이 성공해야 하는 실패 테스트를 작성하고 실행한다.
-- [ ] **Step 2:** 다른 실행 배포 이름, 실패한 배포, 다른 구독/RG의 리소스 출력, 잘못된 관리 ID UUID를 거부하는 테스트를 추가한다.
-- [ ] **Step 3:** capture와 package를 구현한다. ZIP은 `function_app.py`, `host.json`, `requirements.txt`, `rbac_monitor`의 Python 소스만 포함하며 심볼릭 링크와 루트 밖 경로는 거부한다.
-- [ ] **Step 4:** `.venv`, `.python_packages`, `local.settings.json`, 상태, 문서와 테스트가 있는 임시 프로젝트로 포장해 제외 및 ZIP 루트 구조를 확인한다.
-- [ ] **Step 5:** Bicep에 태그·Reader 조건·출력을 추가한다. 기본의 빈 `resourceGroupTags`는 태그 속성을 생략해 기존 호출에서 빈 태그를 강제 덮어쓰지 않는다. 조건부 Reader에 대한 eventing 의존성과 출력이 비활성일 때도 유효하게 컴파일되도록 한다. 다른 런타임·네트워크 설정은 바꾸지 않는다.
-- [ ] **Step 6:** 전체 unittest, `az bicep build --file .\infra\main.bicep`, 기존 격리 Checkov를 사용한 관련 ARM 검사와 `git diff --check`를 실행한다. 기존에 문서화된 한정 예외를 운영 보안 전체 통과로 표현하지 않는다.
-- [ ] **Step 7:** 관련 파일만 커밋한다.
+- [x] **Step 1:** 모의 성공 배포 출력의 capture와 ZIP 생성이 성공해야 하는 실패 테스트를 작성하고 실행한다.
+- [x] **Step 2:** 다른 실행 배포 이름, 실패한 배포, 다른 구독/RG의 리소스 출력, 잘못된 관리 ID UUID를 거부하는 테스트를 추가한다.
+- [x] **Step 3:** capture와 package를 구현한다. ZIP은 `function_app.py`, `host.json`, `requirements.txt`, `rbac_monitor`의 Python 소스만 포함하며 심볼릭 링크와 루트 밖 경로는 거부한다.
+- [x] **Step 4:** `.venv`, `.python_packages`, `local.settings.json`, 상태, 문서와 테스트가 있는 임시 프로젝트로 포장해 제외 및 ZIP 루트 구조를 확인한다.
+- [x] **Step 5:** Bicep에 기존 RG 모드·Reader 조건·출력을 추가한다. 기존 RG 생성 선언은 그대로 두고 워크숍은 태그 있는 새 RG를 먼저 만든 뒤 `createResourceGroup=false`로 호출한다. 두 조건이 비활성일 때도 module scope·의존성과 출력이 유효하게 컴파일되도록 한다. 다른 런타임·네트워크 설정은 바꾸지 않는다.
+- [x] **Step 6:** 전체 unittest, `az bicep build --file .\infra\main.bicep`, 기존 격리 Checkov를 사용한 관련 ARM 검사와 `git diff --check`를 실행한다. 기존에 문서화된 한정 예외를 운영 보안 전체 통과로 표현하지 않는다.
+- [x] **Step 7:** 관련 파일만 커밋한다.
 
 ### Task 3: 실제 이벤트 실험·증거 대조·안전한 정리 도구
 
@@ -134,7 +134,7 @@ Azure 리소스 조회는 ARM 응답의 `properties` 등 명시적 구조를 사
 
 - `docs\00-azure-rbac-basics.md`: 개념, 대상과 수행자, 전체 구성·이벤트 흐름.
 - `docs\01-prerequisites.md`: Cloud Shell·도구·권한·비용, clone·init·복구, 토픽 충돌 중단.
-- `docs\02-private-infrastructure.md`: 실행별 소유 태그, what-if, Reader 비활성 인프라 배포, capture, PE·DNS·Storage 확인.
+- `docs\02-private-infrastructure.md`: 소유 태그가 있는 새 RG 생성, what-if, RG 생성·Reader 비활성 인프라 배포, capture, PE·DNS·Storage 확인.
 - `docs\03-function-deployment.md`: 소스 ZIP, Linux 원격 빌드, 등록 확인, 사설 Storage 403 진단과 무조건 재시작 금지.
 - `docs\04-event-grid.md`: 코드 게시 후 what-if·eventing 활성화, 정확한 유형·작업·destination·retry 확인.
 - `docs\05-rbac-event-validation.md`: 안전한 Reader 실험, Activity·KQL·함수 성공·지표 대조, 실제와 예시 구분.

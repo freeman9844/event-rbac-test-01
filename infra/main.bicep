@@ -16,26 +16,35 @@ param namePrefix string
 @description('Create event routing only after publishing the function. False does not delete existing routing.')
 param enableEventSubscription bool = false
 
+@description('Keep the original group creation by default. The workshop first creates a tagged group and explicitly disables this.')
+param createResourceGroup bool = true
+
+@description('Keep the original PoC Reader assignment by default. The receiver-only workshop explicitly disables it.')
+param assignSubscriptionReader bool = true
+
 var suffix = uniqueString(subscription().id, resourceGroupName)
 var topicName = 'evgt-${namePrefix}-${suffix}'
 var readerRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')
 
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = if (createResourceGroup) {
   name: resourceGroupName
   location: location
 }
 
 module workload 'workload.bicep' = {
   name: 'rbac-monitor-workload'
-  scope: resourceGroup
+  scope: az.resourceGroup(resourceGroupName)
   params: {
     location: location
     namePrefix: namePrefix
     suffix: suffix
   }
+  dependsOn: [
+    resourceGroup
+  ]
 }
 
-resource readerAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource readerAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignSubscriptionReader) {
   name: guid(subscription().id, resourceGroupName, 'rbac-monitor-reader')
   properties: {
     roleDefinitionId: readerRoleId
@@ -46,13 +55,14 @@ resource readerAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' =
 
 module eventing 'eventing.bicep' = if (enableEventSubscription) {
   name: 'rbac-monitor-eventing'
-  scope: resourceGroup
+  scope: az.resourceGroup(resourceGroupName)
   params: {
     systemTopicName: topicName
     sourceSubscriptionId: subscription().id
     functionResourceId: '${workload.outputs.functionAppResourceId}/functions/RbacAssignmentObserver'
   }
   dependsOn: [
+    resourceGroup
     readerAssignment
   ]
 }
@@ -63,3 +73,4 @@ output managedIdentityPrincipalId string = workload.outputs.managedIdentityPrinc
 output applicationInsightsName string = workload.outputs.applicationInsightsName
 output workspaceResourceId string = workload.outputs.workspaceResourceId
 output systemTopicName string = topicName
+output subscriptionReaderAssignmentId string = assignSubscriptionReader ? readerAssignment!.id : ''

@@ -3,6 +3,7 @@
 .python-runtime/
 .worktrees/
 .superpowers/
+.workshop-state/
 .python_packages/
 __pycache__/
 local.settings.json

@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -91,9 +92,42 @@ def validate_state(state: object) -> dict:
     }, "Foreign deployment names.")
     utc_time(state["createdAtUtc"])
     require(isinstance(state["outputs"], dict), "Invalid deployment outputs.")
+    if state["outputs"]:
+        validate_outputs(state, state["outputs"])
     require(state["assignment"] is None or isinstance(state["assignment"], dict),
             "Invalid assignment record.")
     return state
+
+
+def validate_outputs(state: dict, outputs: object) -> dict:
+    keys = {"functionAppName", "functionAppResourceId", "managedIdentityPrincipalId",
+            "applicationInsightsName", "workspaceResourceId", "systemTopicName",
+            "subscriptionReaderAssignmentId"}
+    require(isinstance(outputs, dict) and set(outputs) == keys
+            and all(isinstance(value, str) for value in outputs.values()),
+            "Unexpected deployment outputs.")
+    match = re.fullmatch(r"func-rbac-lab-([a-z0-9]{13})", outputs["functionAppName"])
+    require(match is not None, "Unexpected function name.")
+    suffix = match.group(1)
+    scope = group_scope(state)
+    expected = {
+        "functionAppResourceId": scope + "/providers/Microsoft.Web/sites/"
+        + outputs["functionAppName"],
+        "workspaceResourceId": scope + "/providers/Microsoft.OperationalInsights/workspaces/"
+        + f"log-rbac-lab-{suffix}",
+        "applicationInsightsName": f"appi-rbac-lab-{suffix}",
+        "systemTopicName": f"evgt-rbac-lab-{suffix}",
+    }
+    for key, value in expected.items():
+        require(outputs[key].lower() == value.lower(), f"Foreign output: {key}")
+    uuid_value(outputs["managedIdentityPrincipalId"])
+    reader = outputs["subscriptionReaderAssignmentId"]
+    if reader:
+        prefix = (f"/subscriptions/{state['subscriptionId']}/providers/"
+                  "Microsoft.Authorization/roleAssignments/")
+        require(reader.lower().startswith(prefix.lower()), "Foreign subscription Reader.")
+        uuid_value(reader[len(prefix):])
+    return outputs
 
 
 def load_state(path: Path) -> dict:
@@ -218,12 +252,68 @@ def init_run(root: Path, subscription_id: str, tenant_id: str, location: str) ->
     return path
 
 
+def arm_get(state: dict, resource_id: str, version: str) -> dict:
+    value = scoped(state, ["rest", "--method", "get", "--url",
+                          f"https://management.azure.com{resource_id}?api-version={version}"])
+    require(isinstance(value, dict), "Invalid ARM resource response.")
+    return value
+
+
+def capture_deployment(state_file: Path, deployment_name: str) -> None:
+    state = load_state(state_file)
+    require(deployment_name in state["deploymentNames"].values(), "Foreign deployment name.")
+    check_run(state)
+    require(owned_group(state), "Deployment group is missing.")
+    deployment = scoped(state, ["deployment", "sub", "show", "--name", deployment_name])
+    require(isinstance(deployment, dict)
+            and deployment.get("properties", {}).get("provisioningState") == "Succeeded",
+            "Deployment has not succeeded; inspect it before continuing.")
+    raw_outputs = deployment["properties"].get("outputs")
+    require(isinstance(raw_outputs, dict)
+            and all(isinstance(item, dict) and "value" in item
+                    for item in raw_outputs.values()), "Missing deployment outputs.")
+    outputs = validate_outputs(state, {key: item["value"] for key, item in raw_outputs.items()})
+    app = arm_get(state, outputs["functionAppResourceId"], "2024-11-01")
+    require(app.get("id", "").lower() == outputs["functionAppResourceId"].lower()
+            and app.get("identity", {}).get("principalId", "").lower()
+            == outputs["managedIdentityPrincipalId"].lower(),
+            "Deployment managed identity does not belong to this function.")
+    state["outputs"] = outputs
+    save_state(state_file, state)
+
+
+def package_sources(root: Path, destination: Path) -> list[str]:
+    root = root.resolve()
+    module = root / "rbac_monitor"
+    require(module.is_dir() and not module.is_symlink(), "Missing or symbolic source package.")
+    paths = [root / name for name in ("function_app.py", "host.json", "requirements.txt")]
+    for path in module.rglob("*"):
+        require(not path.is_symlink(), "Refusing symbolic package contents.")
+        if path.suffix == ".py" and path.is_file():
+            paths.append(path)
+    require((module / "__init__.py") in paths and (module / "events.py") in paths,
+            "Receiver Python sources are missing.")
+    for path in paths:
+        require(path.is_file() and not path.is_symlink()
+                and path.resolve().is_relative_to(root), "Unsafe or missing package source.")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    names = []
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(paths):
+            name = path.relative_to(root).as_posix()
+            archive.write(path, name)
+            names.append(name)
+    return names
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="RBAC event workshop")
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("show", "check"):
+    for name in ("show", "check", "capture", "package"):
         command = commands.add_parser(name)
         command.add_argument("state", type=Path)
+        if name == "capture":
+            command.add_argument("--deployment", required=True)
     init = commands.add_parser("init")
     init.add_argument("--subscription", required=True)
     init.add_argument("--tenant", required=True)
@@ -237,6 +327,13 @@ def main() -> None:
             if args.command == "check":
                 check_run(state)
                 print("PASS: run identity and ownership checked.")
+            elif args.command == "capture":
+                capture_deployment(args.state, args.deployment)
+                print("PASS: deployment outputs captured.")
+            elif args.command == "package":
+                destination = args.state.parent / state["runId"] / "receiver.zip"
+                package_sources(Path(__file__).resolve().parents[1], destination)
+                print(destination)
             else:
                 print(json.dumps(state, ensure_ascii=False))
     except (WorkshopError, OSError) as error:
