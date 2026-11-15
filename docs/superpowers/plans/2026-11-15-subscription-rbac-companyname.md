@@ -139,17 +139,17 @@ def test_rejects_non_rbac_operation(self):
 - 출력: `functionAppName`, `functionAppResourceId`, `managedIdentityPrincipalId`, `applicationInsightsName`, `workspaceResourceId`, `systemTopicName` 문자열.
 - 이벤트 연결: `enableEventSubscription=false`는 실행 리소스만, `true`는 코드 배포 후 Event Grid 연결까지 수행한다. 재배포로 다른 리소스를 삭제하지 않는다.
 
-- [ ] **Step 1: 소스 검증 절차와 배포 전 확인 목록을 README에 작성한다.**
+- [x] **Step 1: 소스 검증 절차와 배포 전 확인 목록을 README에 작성한다.**
 
 실제 기대 결과는 새 테스트 Reader 할당의 ID에 대응하는 `RbacRoleAssignmentReceived` 로그이다. 테스트할 구독, 테넌트, 지역, 사용자 Object ID, 범위와 비용 승인을 먼저 받는다. 기존 동일 Reader 할당이 있으면 삭제하지 말고 별도 테스트 범위를 선택한다.
 
-- [ ] **Step 2: Bicep 파일이 없어 정적 검증이 실패함을 확인한다.**
+- [x] **Step 2: Bicep 파일이 없어 정적 검증이 실패함을 확인한다.**
 
 실행: `az bicep build --file .\infra\main.bicep`
 
 기대: 파일 없음으로 실패. Azure CLI가 없다면 도구 미설치 실패로 구분하고 먼저 필요한 도구 설치 승인을 확인한다.
 
-- [ ] **Step 3: 구독 범위 Bicep과 필요한 배포 안내를 작성한다.**
+- [x] **Step 3: 구독 범위 Bicep과 필요한 배포 안내를 작성한다.**
 
 `main.bicep`은 전용 리소스 그룹과 workload 모듈, Function 관리 ID의 구독 Reader 역할, 조건부 eventing 모듈을 정의한다. 이름은 prefix와 구독·리소스 그룹의 안정적인 고유값에서 파생한다. 기본 호스팅은 Linux Flex Consumption `FC1`, Python `3.11`이다.
 
