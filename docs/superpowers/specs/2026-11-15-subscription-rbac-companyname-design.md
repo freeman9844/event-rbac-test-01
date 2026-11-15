@@ -1,7 +1,7 @@
 # 구독 RBAC 역할 할당과 사용자 companyName 확인 설계
 
 - 작성일: 2026-11-15
-- 상태: 설계 승인 대기. 제품 코드 작성과 Azure 배포는 아직 수행하지 않는다.
+- 상태: 2026-11-15 사용자 승인 완료. 제품 코드 작성과 Azure 배포는 아직 수행하지 않았다.
 - 작업 규모: 새 Function과 이벤트 연결을 만드는 소규모 검증 프로젝트.
 
 ## 1. 목적과 확인된 요구
@@ -152,7 +152,7 @@ Function 실행용 Storage Account, Application Insights 및 연결된 Log Analy
 | `principalId`, `principalType` | 직접 할당 대상 |
 | `displayName`, `userPrincipalName` | 사용자 식별 정보, 비사용자는 null |
 | `roleDefinitionId`, `roleName`, `scope` | 역할과 적용 범위 |
-| `companyName` | 조회한 사용자 속성, 미설정 또는 비사용자는 null |
+| `companyName` | 조회한 사용자 속성의 원래 값, 비사용자는 null |
 | `enrichmentStatus` | `succeeded`, `companyNameNotSet`, `notApplicable` |
 
 사용자 조회 결과가 null 또는 빈 문자열인 경우 원래 값을 보존하고 `companyNameNotSet`으로 구별한다. `companyName`을 이메일 도메인 등으로 추정해서 채우지 않는다. 게스트 사용자는 리소스 테넌트의 게스트 사용자 객체에 기록된 값을 읽으며, 홈 테넌트의 회사 정보를 대신 조회하지 않는다.
