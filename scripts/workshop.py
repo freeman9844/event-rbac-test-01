@@ -299,6 +299,11 @@ def capture_deployment(state_file: Path, deployment_name: str) -> None:
             and app.get("identity", {}).get("principalId", "").lower()
             == outputs["managedIdentityPrincipalId"].lower(),
             "Deployment managed identity does not belong to this function.")
+    previous_reader = state["outputs"].get("subscriptionReaderAssignmentId", "")
+    if previous_reader and previous_reader.lower() != outputs["subscriptionReaderAssignmentId"].lower():
+        require(find_role(role_assignments(state), previous_reader) is None,
+                "The recorded subscription Reader still exists. Keep this state and "
+                "clean the run before replacing its deployment outputs.")
     state["outputs"] = outputs
     save_state(state_file, state)
 
@@ -571,8 +576,13 @@ def metrics_evidence(state: dict, start: str, end: str) -> dict:
     require(isinstance(raw.get("value"), list), "Invalid metrics values.")
     result = {}
     for metric in raw["value"]:
+        require(isinstance(metric, dict), "Malformed metric result.")
         name = metric.get("name", {}).get("value")
         require(name in METRICS and name not in result, "Unexpected or duplicate metric.")
+        error_code = metric.get("errorCode")
+        require(error_code is None or (
+            isinstance(error_code, str) and error_code.lower() == "success"
+        ), f"Metric {name} query failed: {error_code}")
         samples = []
         require(isinstance(metric.get("timeseries"), list), "Missing metric timeseries.")
         for series in metric["timeseries"]:

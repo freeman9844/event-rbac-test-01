@@ -167,3 +167,14 @@ class WorkshopDocTests(unittest.TestCase):
             result, calls = self.run_contract(scripts["create-group"], DOC_GROUP_EXISTS=existing)
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse(any(args[:2] == ["group", "create"] for args in calls))
+
+    def test_prerequisites_query_flex_vnet_resource_provider(self):
+        text = (ROOT / "docs" / "01-prerequisites.md").read_text(encoding="utf-8")
+        match = re.search(r"<!-- prerequisite-contract: providers -->\s*```bash\n(.*?)\n```",
+                          text, re.DOTALL)
+        self.assertIsNotNone(match)
+        result, calls = self.run_contract(match.group(1))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        namespaces = [args[args.index("--namespace") + 1] for args in calls
+                      if args[:2] == ["provider", "show"]]
+        self.assertIn("Microsoft.App", namespaces)

@@ -48,6 +48,8 @@ class Azure:
         self.unrelated = False
         self.bad_window = False
         self.failure_total = None
+        self.metric_error = None
+        self.deployment_reader = EXTERNAL
         self.forbid_roles_after_create = False
         self.roles_forbidden = False
 
@@ -76,7 +78,7 @@ class Azure:
             return None
         if args[:3] == ["deployment", "sub", "show"]:
             outputs = outputs_fixture()
-            outputs["subscriptionReaderAssignmentId"] = EXTERNAL
+            outputs["subscriptionReaderAssignmentId"] = self.deployment_reader
             return {"properties": {"provisioningState": "Succeeded", "outputs": {
                 key: {"type": "String", "value": value} for key, value in outputs.items()
             }}}
@@ -155,12 +157,17 @@ class Azure:
             end = args[args.index("--end-time") + 1]
             if self.bad_window:
                 end = "2026-11-15T21:01:00Z"
-            return {"timespan": start + "/" + end, "value": [
+            result = {"timespan": start + "/" + end, "value": [
                 {"name": {"value": name}, "timeseries": [{"data": [{"total": total}]}]}
                 for name, total in (("PublishSuccessCount", 2), ("MatchedEventCount", 1),
                                     ("DeliverySuccessCount", 1),
                                     ("DeliveryAttemptFailCount", self.failure_total))
             ]}
+            if self.metric_error is not None:
+                result["value"][-1].update(
+                    errorCode=self.metric_error, errorMessage="Metric provider failure",
+                    timeseries=[])
+            return result
         return azure_base(args)
 
 
@@ -299,6 +306,48 @@ class LifecycleTests(unittest.TestCase):
             self.verify()
         evidence = self.path.parent / "abcd1234" / "verification.json"
         self.assertFalse(json.loads(evidence.read_text(encoding="utf-8"))["verified"])
+
+    def test_per_metric_failure_is_not_an_empty_success_sample(self):
+        workshop.exercise_event(self.path)
+        self.azure.metric_error = "BadRequest"
+        with self.assertRaisesRegex(workshop.WorkshopError, "BadRequest"):
+            self.verify()
+        evidence = self.path.parent / "abcd1234" / "verification.json"
+        self.assertFalse(json.loads(evidence.read_text(encoding="utf-8"))["verified"])
+        self.azure.metric_error = "Success"
+        self.assertIsNone(self.verify()["metrics"]["DeliveryAttemptFailCount"])
+
+    def test_capture_cannot_forget_a_reader_that_cleanup_still_needs(self):
+        state = workshop.load_state(self.path)
+        state["outputs"]["subscriptionReaderAssignmentId"] = EXTERNAL
+        workshop.save_state(self.path, state)
+        original = self.path.read_bytes()
+        self.azure.roles[EXTERNAL] = self.azure.role(
+            EXTERNAL, principal="55555555-5555-4555-8555-555555555555",
+            scope=SUB, principal_type="ServicePrincipal")
+        self.azure.deployment_reader = ""
+        with self.assertRaisesRegex(workshop.WorkshopError, "Reader"):
+            workshop.capture_deployment(self.path, "rbac-ws-abcd1234-infra")
+        self.assertEqual(self.path.read_bytes(), original)
+        self.assertIn(EXTERNAL, self.azure.roles)
+        result = workshop.cleanup_run(
+            self.path, "DELETE abcd1234 FROM 11111111-1111-4111-8111-111111111111")
+        self.assertEqual(result["subscriptionReader"], "removed")
+        self.assertEqual(self.azure.roles, {})
+
+    def test_capture_forgets_old_reader_only_after_proving_absence(self):
+        state = workshop.load_state(self.path)
+        state["outputs"]["subscriptionReaderAssignmentId"] = EXTERNAL
+        workshop.save_state(self.path, state)
+        original = self.path.read_bytes()
+        self.azure.deployment_reader = ""
+        self.azure.roles_forbidden = True
+        with self.assertRaisesRegex(workshop.WorkshopError, "403"):
+            workshop.capture_deployment(self.path, "rbac-ws-abcd1234-infra")
+        self.assertEqual(self.path.read_bytes(), original)
+        self.azure.roles_forbidden = False
+        workshop.capture_deployment(self.path, "rbac-ws-abcd1234-infra")
+        self.assertEqual(workshop.load_state(self.path)["outputs"]["subscriptionReaderAssignmentId"], "")
 
     def test_cleanup_preview_refusal_and_owned_group_deletion(self):
         confirmation = "DELETE abcd1234 FROM 11111111-1111-4111-8111-111111111111"

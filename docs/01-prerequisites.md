@@ -32,8 +32,9 @@ az functionapp list-flexconsumption-locations --subscription "$SUB_ID" --output 
 
 `LOCATION`은 Python 3.11 Flex Consumption과 필요한 네트워크 기능을 지원하는 승인 지역으로 선택합니다. 한국 중부를 사용할 수 없으면 **배포 전에** 값을 바꿉니다.
 
+<!-- prerequisite-contract: providers -->
 ```bash
-for provider in Microsoft.Web Microsoft.Storage Microsoft.Network Microsoft.Insights \
+for provider in Microsoft.Web Microsoft.App Microsoft.Storage Microsoft.Network Microsoft.Insights \
                 Microsoft.OperationalInsights Microsoft.EventGrid; do
   az provider show --namespace "$provider" --subscription "$SUB_ID" \
     --query '{namespace:namespace,state:registrationState}' --output table
@@ -44,7 +45,7 @@ az policy assignment list --subscription "$SUB_ID" \
 
 📋 **확인**
 
-계정·테넌트가 승인한 값이고 cloud는 `AzureCloud`인지 확인합니다. 리소스 공급자는 `Registered`여야 합니다. 미등록·권한 오류는 관리자가 해소한 뒤 진행합니다. 마지막 CLI 정책 목록만으로 관리 그룹의 상속 정책까지 모두 검토했다고 판단하지 않습니다.
+계정·테넌트가 승인한 값이고 cloud는 `AzureCloud`인지 확인합니다. 리소스 공급자는 `Registered`여야 합니다. 특히 Flex Consumption VNet 통합에는 **`Microsoft.App` 등록**도 필요합니다([공식 요건](https://learn.microsoft.com/azure/azure-functions/flex-consumption-how-to#configure-virtual-network-integration)). 미등록·권한 오류는 관리자가 해소한 뒤 진행합니다. 마지막 CLI 정책 목록만으로 관리 그룹의 상속 정책까지 모두 검토했다고 판단하지 않습니다.
 
 Portal → **정책 → 할당**에서 구독과 상위 관리 그룹의 상속 정책까지 검토합니다. 허용 지역, 필수 태그, Private Endpoint 승인, Storage 공개 접근 차단, 조직별 VNet CIDR 제약을 확인합니다. 전용 VNet은 `10.76.0.0/16`이며 다른 VNet과 피어링하지 않습니다.
 

@@ -36,7 +36,7 @@ git --no-pager diff --check
 | `assignSubscriptionReader` | `true` | `false` — 수신에 불필요한 구독 Reader 제외 |
 | `enableEventSubscription` | `false` | 인프라 단계 false / 코드 게시·등록 이후 true |
 
-`enableEventSubscription=false`로 재배포해도 기존 이벤트 구독은 삭제되지 않습니다. 구독 수준 Reader는 RG 삭제에 따라 자동 제거되지 않으므로 과거 PoC·수동 호출은 해당 실행의 정확한 ID와 소유권을 별도로 확인해야 합니다. 현재 워크숍 도구에 과거 실행의 RG·토픽·ID를 넣지 않습니다.
+`enableEventSubscription=false`로 재배포해도 기존 이벤트 구독은 삭제되지 않습니다. `assignSubscriptionReader=false`도 이미 생성한 구독 Reader를 제거하지 않습니다. `capture`는 이전에 기록한 Reader가 실제로 남아 있거나 부재 조회가 실패하면 해당 ID를 새 빈 출력으로 덮어쓰지 않습니다. 구독 수준 Reader는 RG 삭제에 따라 자동 제거되지 않으므로 과거 PoC·수동 호출은 해당 실행의 정확한 ID와 소유권을 별도로 확인해야 합니다. 현재 워크숍 도구에 과거 실행의 RG·토픽·ID를 넣지 않습니다.
 
 ## 과거 실측 예시와 현재 검증 범위
 
