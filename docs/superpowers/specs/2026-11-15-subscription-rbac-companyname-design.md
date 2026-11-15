@@ -1,7 +1,7 @@
 # 구독 RBAC 역할 할당과 사용자 companyName 확인 설계
 
 - 작성일: 2026-11-15
-- 상태: 2026-11-15 사용자 승인 완료. 제품 코드 작성과 Azure 배포는 아직 수행하지 않았다.
+- 상태: 2026-11-15 사용자 승인 완료. 사설 Storage 확장과 추가 비용을 별도 승인받아 실제 RBAC 이벤트 수신을 검증했다. ARM·Graph 보강과 companyName 처리는 후속 구현 단계다.
 - 작업 규모: 새 Function과 이벤트 연결을 만드는 소규모 검증 프로젝트.
 
 ## 1. 목적과 확인된 요구
@@ -15,7 +15,7 @@ Azure Subscription에서 RBAC 역할 할당이 발생하면 할당받은 대상,
 - 사용자 추가 속성은 `companyName`이다.
 - 결과는 Application Insights 로그에서 확인한다.
 
-현재 저장소에는 초기 커밋만 있고 애플리케이션이나 인프라 파일은 없다. 기존 구현과의 호환성 제약은 없다.
+설계 착수 당시에는 초기 커밋만 있고 애플리케이션이나 인프라 파일이 없어 기존 구현과의 호환성 제약은 없었다.
 
 ## 2. 목표와 제외 범위
 
@@ -83,6 +83,8 @@ Azure Subscription
 
 Function 실행용 Storage Account, Application Insights 및 연결된 Log Analytics Workspace가 필요하다. 별도 업무 데이터베이스나 메시지 큐는 초기 범위에 포함하지 않는다. 신규 리소스는 전용 리소스 그룹에 배치하되 이벤트 소스와 읽기 권한 범위는 대상 구독이다.
 
+실제 배포에서 관리 그룹 정책이 Storage 공개 네트워크를 차단하는 것이 확인돼, 사용자가 VNet 통합·Storage Private Endpoint·Private DNS 추가 및 그 비용을 승인했다. 전용 VNet의 `functions` 서브넷은 Flex Consumption용 `Microsoft.App/environments`에 위임하고, 별도 `private-endpoints` 서브넷에 Blob·Queue Private Endpoint를 배치한다. 두 Storage DNS 영역을 VNet에 연결하고 Storage의 공개 네트워크·익명 접근·공유 키 접근은 비활성화한다. Function의 수신 HTTPS 엔드포인트는 기존 네이티브 Event Grid 인증을 유지하며 공개 상태로 두므로 Function 인바운드까지 완전히 격리하는 구성은 아니다. 기존 네트워크나 조직 정책은 변경하지 않는다.
+
 이벤트 구독은 Function 배포와 권한 준비가 끝난 뒤 연결한다. 리소스 그룹 및 실제 이름, Azure 지역, 구독 ID와 테넌트 ID는 배포 시 입력한다. 실제 배포 전 대상 구독과 비용 발생을 사용자에게 확인한다.
 
 ## 6. 이벤트 선택과 확인이 필요한 가정
@@ -99,7 +101,7 @@ Function 실행용 Storage Account, Application Insights 및 연결된 Log Analy
 
 특정 구독 수준 할당의 subject 접두사로 한정하지 않는다. 그렇게 하면 리소스 그룹과 개별 리소스 범위의 할당을 누락할 수 있다. Function에서도 이벤트 유형, 작업명, 소스 구독, 역할 할당 리소스 경로를 검증해 의도하지 않은 ARM 조회를 방지한다. 비교는 ARM 식별자의 대소문자 차이를 고려한다.
 
-공식 문서는 구독의 ARM 쓰기 이벤트와 작업명 필터링을 설명하지만, 이번 작업에서는 실제 구독의 `roleAssignments/write` 이벤트를 아직 관측하지 않았다. 따라서 다음을 검증의 첫 관문으로 둔다.
+공식 문서는 구독의 ARM 쓰기 이벤트와 작업명 필터링을 설명한다. 다음을 검증의 첫 관문으로 두었으며, 2026-11-15 실제 구독의 임시 RG Reader 할당에 대한 `roleAssignments/write` 이벤트를 Event Grid와 Function을 거쳐 Application Insights에서 관측했다. 이번 결과로 다른 테넌트·모든 PIM 경로까지 검증됐다고 확대하지 않는다.
 
 1. 사용자가 지정한 테스트 범위에 임시 Reader 역할을 할당한다.
 2. 해당 작업이 Activity Log에 성공으로 기록됐는지 확인한다.

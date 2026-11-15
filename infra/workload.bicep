@@ -7,6 +7,60 @@ param namePrefix string
 @description('Stable, globally distinctive resource name suffix.')
 param suffix string
 
+var storageServices = [
+  'blob'
+  'queue'
+]
+
+resource networkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
+  name: 'nsg-${namePrefix}-${suffix}'
+  location: location
+  properties: {
+    securityRules: []
+  }
+}
+
+resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' = {
+  name: 'vnet-${namePrefix}-${suffix}'
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.76.0.0/16'
+      ]
+    }
+    subnets: [
+      {
+        name: 'functions'
+        properties: {
+          addressPrefix: '10.76.0.0/24'
+          networkSecurityGroup: {
+            id: networkSecurityGroup.id
+          }
+          delegations: [
+            {
+              name: 'flex-consumption'
+              properties: {
+                serviceName: 'Microsoft.App/environments'
+              }
+            }
+          ]
+        }
+      }
+      {
+        name: 'private-endpoints'
+        properties: {
+          addressPrefix: '10.76.1.0/27'
+          privateEndpointNetworkPolicies: 'Disabled'
+          networkSecurityGroup: {
+            id: networkSecurityGroup.id
+          }
+        }
+      }
+    ]
+  }
+}
+
 resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: 'log-${namePrefix}-${suffix}'
   location: location
@@ -44,9 +98,66 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     allowSharedKeyAccess: false
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: 'Disabled'
+    networkAcls: {
+      bypass: 'None'
+      defaultAction: 'Deny'
+    }
   }
 }
+
+resource privateDnsZones 'Microsoft.Network/privateDnsZones@2020-06-01' = [for service in storageServices: {
+  name: 'privatelink.${service}.${environment().suffixes.storage}'
+  location: 'global'
+}]
+
+resource privateDnsLinks 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = [for (service, index) in storageServices: {
+  parent: privateDnsZones[index]
+  name: 'link-${namePrefix}-${suffix}'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: virtualNetwork.id
+    }
+  }
+}]
+
+resource privateEndpoints 'Microsoft.Network/privateEndpoints@2024-05-01' = [for service in storageServices: {
+  name: 'pe-${namePrefix}-${service}-${suffix}'
+  location: location
+  properties: {
+    subnet: {
+      id: '${virtualNetwork.id}/subnets/private-endpoints'
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'storage-${service}'
+        properties: {
+          privateLinkServiceId: storage.id
+          groupIds: [
+            service
+          ]
+        }
+      }
+    ]
+  }
+}]
+
+resource privateDnsZoneGroups 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = [for (service, index) in storageServices: {
+  parent: privateEndpoints[index]
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: service
+        properties: {
+          privateDnsZoneId: privateDnsZones[index].id
+        }
+      }
+    ]
+  }
+}]
 
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
   parent: storage
@@ -85,6 +196,7 @@ resource functionApp 'Microsoft.Web/sites@2024-11-01' = {
     serverFarmId: plan.id
     httpsOnly: true
     publicNetworkAccess: 'Enabled'
+    virtualNetworkSubnetId: '${virtualNetwork.id}/subnets/functions'
     siteConfig: {
       minTlsVersion: '1.2'
       scmMinTlsVersion: '1.2'
@@ -132,6 +244,10 @@ resource functionApp 'Microsoft.Web/sites@2024-11-01' = {
       }
     }
   }
+  dependsOn: [
+    privateDnsLinks
+    privateDnsZoneGroups
+  ]
 }
 
 resource blobAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {

@@ -12,9 +12,11 @@
 
 ## 실행 상태
 
-2026-11-15 사용자가 실제 Azure 배포와 임시 Reader 테스트를 보류했다. 작업 1은 완료됐고 Python 3.11 환경에서 테스트 14개가 통과했다. 작업 2의 Bicep과 배포 안내는 작성됐으며 로컬 Bicep 컴파일은 통과했지만 what-if, 배포 및 실제 이벤트 수신은 수행하지 않았다. Checkov는 미설치로 실행하지 못했다.
+2026-11-15 작업 1과 작업 2의 실제 이벤트 수신 관문을 완료했다. 실제 RG Reader 임시 할당의 Activity Log 성공, Event Grid 매칭 1건·전달 성공 1건·전달 시도 실패 0건 및 Application Insights 수신 로그의 할당 ID를 대조했다. 임시 사용자 Reader와 임시 진단 설정은 삭제 후 부재까지 확인했다. 로컬 수신기 테스트 14개와 Bicep 컴파일을 통과했다.
 
-실제 이벤트 수신 관문이 아직 통과되지 않았으므로 작업 3~4의 ARM·Graph 보강 조회와 companyName 결과 처리는 구현하지 않았다. 작업 브랜치 `feat/rbac-companyname`과 격리 워크트리를 유지하며, 사용자 재승인 전에는 Azure 리소스나 역할 할당을 변경하지 않는다.
+최초 게시의 Storage 403은 상속된 관리 그룹 정책의 공개 네트워크 차단과 관련됐으며, 사용자가 추가 비용과 사설 네트워크 설계 변경을 승인했다. 조직 정책을 유지한 채 전용 VNet, Blob·Queue Private Endpoint와 Private DNS를 배포하고 Function 재시작 후 같은 ZIP의 Linux 원격 빌드 게시를 통과했다. 최신 한정 Checkov ARM 결과는 22 passed, 0 failed이며 비적용·승인된 PoC 제약·이름 식 오탐 10개 규칙을 명시적으로 제외했다. 전체 운영 보안 검사 통과를 뜻하지 않는다.
+
+이번 추가 요청과 배포 승인은 이벤트 수신 검증까지다. 작업 3~4의 ARM·Graph 보강 조회와 companyName 결과 처리는 아직 구현하지 않았고 Graph 권한도 변경하지 않았다. 작업 브랜치 `feat/rbac-companyname`, 격리 워크트리 및 후속 작업에 필요한 배포 리소스를 유지한다. 환경별 ID와 실행 증거는 공개 커밋에 포함하지 않고 계획 전용 로컬 workspace에 보존한다.
 
 ## Global Constraints
 
@@ -161,31 +163,33 @@ def test_rejects_non_rbac_operation(self):
 
 `workload.bicep`은 공식 Flex 관리 ID 예제에 따라 Storage 호스트·배포 접근에 필요한 역할과 인증 설정을 완성한다. ARM/Graph용 시스템 할당 ID를 유지하고 순환 의존성을 피한다. Storage 자격 증명이나 Function 키는 output하지 않는다. 기본 Application Insights 연동과 `EXPECTED_SUBSCRIPTION_ID`를 설정한다.
 
+사용자의 추가 승인에 따라 같은 전용 RG에 NSG와 VNet을 만들고, 별도 통합 서브넷(`Microsoft.App/environments` 위임)과 Private Endpoint 서브넷을 사용한다. Blob·Queue Private Endpoint, Private DNS 영역과 VNet 연결을 배치한 뒤 Function에 `virtualNetworkSubnetId`를 지정한다. Storage의 공개 네트워크와 기본 네트워크 접근은 차단한다. 초기 게시의 실제 Storage 403을 통합 RED로 보존하고 동일 코드 ZIP 게시 및 함수 등록 성공으로 GREEN을 검증한다.
+
 `eventing.bicep`은 시스템 토픽의 source를 현재 구독 ID, topicType을 `Microsoft.Resources.Subscriptions`로 지정한다. 이벤트 구독의 목적지는 Function의 전체 리소스 ID와 `/functions/RbacAssignmentObserver`이다. 설계서 6절의 이벤트 유형·키·연산자·값을 그대로 사용하고, 하위 scope를 제외하는 subject 접두사는 설정하지 않는다.
 
-- [ ] **Step 4: 정적 검증과 배포 전 변경 내용을 확인한다.**
+- [x] **Step 4: 정적 검증과 배포 전 변경 내용을 확인한다.**
 
 실행: `az bicep build --file .\infra\main.bicep`
 
 기대: 오류 없이 컴파일된다. 사용자가 지정한 `$location`, `$resourceGroupName`, `$prefix`로 다음 what-if를 수행하고 생성·역할 부여 범위가 승인된 대상뿐인지 확인한다.
 
 ```powershell
-az deployment sub what-if --location $location --template-file .\infra\main.bicep --parameters resourceGroupName=$resourceGroupName location=$location namePrefix=$prefix enableEventSubscription=false
+az deployment sub what-if --subscription $subscriptionId --location $location --template-file .\infra\main.bicep --parameters resourceGroupName=$resourceGroupName location=$location namePrefix=$prefix enableEventSubscription=false
 ```
 
 지역은 `az functionapp list-flexconsumption-locations -o table`로 확인한다. 미지원이면 임의로 지역이나 요금제를 바꾸지 않는다.
 
-- [ ] **Step 5: 승인된 리소스 배포 후 수신 코드를 게시하고 이벤트를 연결한다.**
+- [x] **Step 5: 승인된 리소스 배포 후 수신 코드를 게시하고 이벤트를 연결한다.**
 
-what-if와 같은 매개변수로 `az deployment sub create`를 수행한다. 출력된 앱 이름으로 `func azure functionapp publish $appName`을 실행하고 `az functionapp function list --resource-group $resourceGroupName --name $appName -o table`에서 함수 등록을 확인한다. 코드 게시 후 `enableEventSubscription=true`로 다시 배포한다. 배포 도구가 없으면 그 실패를 근거로 설치를 안내한다.
+what-if와 같은 매개변수로 `az deployment sub create`를 수행한다. 출력된 앱 이름으로 Core Tools의 `func azure functionapp publish` 또는 공식 Azure CLI의 `az functionapp deployment source config-zip --build-remote true`를 사용하고 실제 함수 목록에서 등록을 확인한다. 승인된 구독을 각 명령에 명시한다. 코드 게시 후 `enableEventSubscription=true`로 다시 배포한다. 설치된 Azure CLI로 게시 가능한 경우 공유 환경에 Core Tools를 전역 설치하지 않는다.
 
-- [ ] **Step 6: 실제 Reader 할당으로 이벤트 수신을 검증한다.**
+- [x] **Step 6: 실제 Reader 할당으로 이벤트 수신을 검증한다.**
 
 승인된 사용자와 범위에 GUID 이름의 임시 Reader 할당을 만든다. 생성에 성공한 할당 ID만 기록한다. Activity Log의 작업 성공, Event Grid 전달 지표, Application Insights의 수신 eventId·할당 ID를 대조한다. 토큰이나 전체 claims를 로그에 추가하지 않고 필요한 원본 필드는 디버거 또는 제한된 임시 진단으로 확인한다.
 
 관측되지 않으면 필터와 배포 및 전달 상태를 조사하고 차단 상태로 멈춘다. 관측 후 생성한 임시 할당만 ID로 제거한다. 명령 및 결과의 개인·환경 식별 정보는 공개 커밋에 넣지 않는다.
 
-- [ ] **Step 7: 인프라와 수신 검증 안내를 커밋한다.**
+- [x] **Step 7: 인프라와 수신 검증 안내를 커밋한다.**
 
 정적 검증과 실제 수신 검증을 구분해 결과를 보고한다. 커밋 메시지: `feat: provision subscription RBAC event pipeline`. 실제 수신이 미검증이면 다음 작업으로 넘어가지 않는다.
 

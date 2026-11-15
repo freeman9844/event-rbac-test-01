@@ -39,21 +39,22 @@ Windows ARM64에서 네이티브 의존성의 휠이 없다면 x64 Python 3.11�
 | 테스트 사용자 | 역할 할당을 허용한 사용자 Object ID |
 | 테스트 범위 | Reader 임시 할당을 허용한 리소스 그룹 또는 리소스 ID |
 | 비용 및 권한 | Function, Storage, Application Insights 및 Workspace 생성과 관리 ID의 구독 Reader 부여 |
+| 사설 Storage 네트워크 | 전용 VNet, Blob·Queue Private Endpoint 및 Private DNS 추가 비용 |
 
 배포 수행자는 리소스 생성, 구독 수준 역할 부여, 구독 소스의 Event Grid 이벤트 구독 생성 권한이 필요합니다. Graph `User.Read.All` 부여는 이후 별도 관리자 단계이며 초기 인프라 배포가 자동으로 부여하지 않습니다.
 
-이 PoC는 VNet이나 Private Endpoint를 만들지 않습니다. Function의 공개 HTTPS 엔드포인트는 네이티브 Event Grid 트리거 인증으로 보호하고 익명 HTTP 함수를 제공하지 않습니다. Storage는 공개 네트워크 주소를 사용하지만 익명 Blob 및 공유 키 접근을 끄고 관리 ID로 접근합니다. 네트워크 격리가 필수인 구독에는 이 구성을 그대로 배포하지 않습니다.
+이 PoC는 전용 VNet의 위임된 `functions` 서브넷에 Function을 통합하고, 별도 서브넷의 Blob·Queue Private Endpoint와 Private DNS를 통해 Storage에 접근합니다. Storage의 공개 네트워크, 익명 Blob 및 공유 키 접근은 끕니다. Function의 공개 HTTPS 엔드포인트는 네이티브 Event Grid 트리거 인증으로 보호하고 익명 HTTP 함수를 제공하지 않습니다. Function 인바운드까지 사설화해야 하는 조직에는 추가 설계가 필요합니다. Private Endpoint와 Private DNS에는 별도 비용이 발생합니다.
 
 ## 단계별 배포
 
-필요한 도구는 Azure CLI, Bicep 및 Azure Functions Core Tools v4입니다. 기존 로그인 계정을 임의로 바꾸지 않고 승인된 구독을 각 명령에 명시합니다.
+필요한 도구는 Azure CLI와 Bicep입니다. 코드 게시에는 Azure Functions Core Tools v4 또는 Azure CLI의 ZIP 원격 빌드를 사용합니다. 기존 로그인 계정을 임의로 바꾸지 않고 승인된 구독을 각 명령에 명시합니다.
 
 ```powershell
 az functionapp list-flexconsumption-locations -o table
 az bicep build --file .\infra\main.bicep
 ```
 
-`infra\main.bicep`은 구독 범위 템플릿입니다. 전용 리소스 그룹, Linux Flex Consumption Function, Storage, Application Insights 및 Workspace를 만듭니다. Function 관리 ID에는 구독 Reader, 호스트 Storage 접근 역할과 텔레메트리 게시 역할을 부여합니다. Storage 공유 키와 익명 Blob 접근, Application Insights 로컬 인증은 비활성화합니다.
+`infra\main.bicep`은 구독 범위 템플릿입니다. 전용 리소스 그룹, Linux Flex Consumption Function, 사설 Storage 네트워크, Application Insights 및 Workspace를 만듭니다. Function 관리 ID에는 구독 Reader, 호스트 Storage 접근 역할과 텔레메트리 게시 역할을 부여합니다. Storage 공개 네트워크·공유 키·익명 Blob 접근과 Application Insights 로컬 인증은 비활성화합니다.
 
 다음 값은 예시 자리 표시자입니다. 실제 승인된 값으로 바꾸고 실행합니다. `namePrefix`는 최초 배포 이후 유지합니다.
 
@@ -68,6 +69,9 @@ $accountTenant = az account show --subscription $subscriptionId --query tenantId
 if ($LASTEXITCODE -ne 0) { throw '대상 구독에 접근할 수 없습니다.' }
 if ($accountTenant -ne $tenantId) { throw '승인된 테넌트와 로그인 테넌트가 다릅니다.' }
 
+az policy assignment list --subscription $subscriptionId --scope "/subscriptions/$subscriptionId" --disable-scope-strict-match true --filter '"atScope()"' --query "[].{name:name,scope:scope,definition:policyDefinitionId}" -o table
+if ($LASTEXITCODE -ne 0) { throw '상속된 정책을 포함한 배포 정책 확인에 실패했습니다.' }
+
 $parameters = @(
     "resourceGroupName=$resourceGroupName"
     "location=$location"
@@ -79,6 +83,8 @@ if ($LASTEXITCODE -ne 0) { throw 'what-if 검증에 실패했습니다.' }
 ```
 
 what-if에 예상한 리소스 생성 및 역할 부여만 있는지 검토한 뒤 배포합니다. 구독 기본 선택을 변경하는 `az account set`은 사용하지 않습니다.
+
+관리 그룹에서 상속된 `modify` 정책은 what-if가 성공해도 실제 설정을 바꿀 수 있습니다. 최초 공개 Storage 구성은 이 정책 때문에 코드 게시가 403으로 실패했고, 사용자 승인 후 현재의 사설 Storage 구성으로 변경했습니다. 코드 게시 전 Private Endpoint 연결 승인과 DNS VNet 연결을 확인합니다. 공유 키를 켜거나 조직 정책을 우회하지 않습니다.
 
 ```powershell
 $deployment = az deployment sub create --subscription $subscriptionId --location $location --template-file .\infra\main.bicep --parameters $parameters enableEventSubscription=false -o json | ConvertFrom-Json
@@ -93,6 +99,15 @@ if ($LASTEXITCODE -ne 0) { throw 'Function 등록 확인에 실패했습니다.'
 ```
 
 `RbacAssignmentObserver` 등록을 확인한 후에만 이벤트를 연결합니다. 관리 ID의 권한 전파가 지연되면 원인을 확인하고 전파 후 다시 게시하며, 공유 키를 켜서 우회하지 않습니다.
+
+기존 Function에 VNet을 나중에 연결한 경우, 연결·DNS·역할이 정상인데도 이전 배포 환경에서 Storage 403이 지속될 수 있습니다. 이번 새 테스트 앱은 VNet 통합 후 재시작하고 같은 ZIP을 다시 게시해 성공했습니다. 운영 앱 재시작은 중단 영향을 별도로 검토합니다.
+
+Core Tools가 없다면 프로젝트 루트의 `host.json`, `function_app.py`, `requirements.txt`와 `rbac_monitor`의 Python 소스만 ZIP 루트에 패키징한 후 다음 명령으로 대신 게시할 수 있습니다. 가상환경, 로컬 설정, 테스트나 문서는 포함하지 않습니다. Windows용 설치 패키지를 업로드하지 않도록 Python은 항상 Linux 원격 빌드를 요청합니다.
+
+```powershell
+az functionapp deployment source config-zip --subscription $subscriptionId --resource-group $resourceGroupName --name $appName --src '<수신기 소스 ZIP 경로>' --build-remote true
+if ($LASTEXITCODE -ne 0) { throw 'Function ZIP 원격 빌드 게시에 실패했습니다.' }
+```
 
 ```powershell
 az deployment sub what-if --subscription $subscriptionId --location $location --template-file .\infra\main.bicep --parameters $parameters enableEventSubscription=true
@@ -124,7 +139,7 @@ $testUserObjectId = '<승인된 테스트 사용자 Object ID>'
 $testScope = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroupName"
 $readerRoleId = 'acdd72a7-3385-48ef-bd42-f606fba81ae7'
 
-$existing = az role assignment list --subscription $subscriptionId --scope $testScope --all --query "[?principalId=='$testUserObjectId' && ends_with(roleDefinitionId, '$readerRoleId')]" -o json | ConvertFrom-Json
+$existing = az role assignment list --subscription $subscriptionId --scope $testScope --fill-principal-name false --query "[?principalId=='$testUserObjectId' && ends_with(roleDefinitionId, '$readerRoleId')]" -o json | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw '기존 역할 할당 조회에 실패했습니다.' }
 if (@($existing).Count -gt 0) { throw '기존 직접 Reader 할당이 있습니다. 별도 테스트 범위를 사용하세요.' }
 
@@ -158,6 +173,14 @@ if ($createdAssignment.id) {
     if ($LASTEXITCODE -ne 0) { throw '임시 할당 정리에 실패했습니다. 해당 ID를 기록해 관리자에게 전달하세요.' }
 }
 ```
+
+## 실제 이벤트 수신 검증 결과
+
+2026-11-15 한국 중부에서 실제 배포와 임시 RG Reader 할당으로 검증했습니다. Activity Log의 역할 할당 성공, Event Grid의 매칭 1건·전달 성공 1건·전달 시도 실패 0건, Application Insights의 `RbacRoleAssignmentReceived`를 대조했습니다. 수신 로그의 할당 ID가 테스트 할당과 일치했고 이벤트 ID도 해당 Activity Log의 correlation ID와 일치했습니다. 이는 이번 관측 결과이며 모든 이벤트에서 두 ID가 같다고 가정하지 않습니다. 임시 사용자 Reader와 임시 Storage 쓰기 진단 설정은 삭제·부재 확인을 마쳤습니다.
+
+로컬 수신기 테스트 14개와 Bicep 컴파일도 통과했습니다. 한정 Checkov ARM 검사 결과는 22 passed, 0 failed입니다. 비적용·승인된 PoC 제약·ARM 이름 식 오탐에 해당하는 `CKV_AZURE_17/18/36/43/67/206/212/213/222/225`는 이 검사에서만 제외했습니다. 제외 범위는 클라이언트 인증서·HTTP/2·Azure Services 우회·동적 이름·복제/인스턴스/가용 영역·별도 상태 확인·Function 공개 수신 관련 권고입니다. Storage 공개 접근 차단 검사는 제외하지 않았으며, 전체 운영 보안 검사 통과를 뜻하지 않습니다.
+
+배포 리소스는 후속 구현을 위해 유지하므로 Storage·Private Endpoint·Private DNS·로그 관련 비용이 발생할 수 있습니다. 현재 검증은 이벤트 수신까지이며 ARM·Graph 보강과 사용자·역할명·`companyName` 조회는 아직 구현하지 않았습니다. Graph 권한은 변경하지 않았습니다.
 
 ## 운영 한계
 
