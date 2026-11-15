@@ -143,13 +143,13 @@ Azure 리소스 조회는 ARM 응답의 `properties` 등 명시적 구조를 사
 
 **Consumes:** Task 1~3의 실제 CLI 이름·상태 필드·동작.
 
-- [ ] **Step 1:** 예정 문서 링크의 존재, 상대 링크와 닫힌 코드 펜스, Bash 블록 구문, 모든 배포 블록의 `assignSubscriptionReader=false`를 검증하는 실패 테스트를 작성한다.
-- [ ] **Step 2:** README를 110분 목차·권한·비용·Mermaid·복구·정리 중심의 시작 페이지로 바꾸고 00~06을 작성한다.
-- [ ] **Step 3:** 각 장에 목표, 필요한 상태 복구, 별도 줄의 설명·실행·확인·주의, 실제 확인 기준, Portal 경로, 완료 체크와 이전·다음 링크를 제공한다.
-- [ ] **Step 4:** 핵심 Azure 명령은 코드 블록에 보인다. 변경 명령은 앞선 검사 실패 시 실행되지 않게 연결하고 참가자 Cloud Shell에 전역 `set -e`나 강제 `exit`를 적용하지 않는다.
-- [ ] **Step 5:** Linux Cloud Shell과 Windows 개발 안내를 분리하고 비밀 없는 예시를 사용한다. 키·정책 우회와 공유 키 활성화, claims로 대상 추론, 구독 Reader 불필요 부여를 권하지 않는다.
-- [ ] **Step 6:** 표 파이프와 링크를 점검하고 Bash는 실행하지 않는 `bash -n`으로 검사한다. 실제 새 워크숍을 재배포한 것으로 표현하지 않는다.
-- [ ] **Step 7:** 전체 unittest, Bicep 컴파일, `git diff --check` PASS 후 관련 파일만 커밋한다.
+- [x] **Step 1:** 예정 문서 링크의 존재, 상대 링크와 닫힌 코드 펜스, Bash 블록 구문, 모든 배포 블록의 `assignSubscriptionReader=false`를 검증하는 실패 테스트를 작성한다.
+- [x] **Step 2:** README를 110분 목차·권한·비용·Mermaid·복구·정리 중심의 시작 페이지로 바꾸고 00~06을 작성한다.
+- [x] **Step 3:** 각 장에 목표, 필요한 상태 복구, 별도 줄의 설명·실행·확인·주의, 실제 확인 기준, Portal 경로, 완료 체크와 이전·다음 링크를 제공한다.
+- [x] **Step 4:** 핵심 Azure 명령은 코드 블록에 보인다. 변경 명령은 앞선 검사 실패 시 실행되지 않게 연결하고 참가자 Cloud Shell에 전역 `set -e`나 강제 `exit`를 적용하지 않는다.
+- [x] **Step 5:** Linux Cloud Shell과 Windows 개발 안내를 분리하고 비밀 없는 예시를 사용한다. 키·정책 우회와 공유 키 활성화, claims로 대상 추론, 구독 Reader 불필요 부여를 권하지 않는다.
+- [x] **Step 6:** 표 파이프와 링크를 점검하고 Bash는 실행하지 않는 `bash -n`으로 검사한다. 실제 새 워크숍을 재배포한 것으로 표현하지 않는다.
+- [x] **Step 7:** 전체 unittest, Bicep 컴파일, `git diff --check` PASS 후 관련 파일만 커밋한다.
 
 ### Task 5: 전체 검토와 GitHub 동기화
 
