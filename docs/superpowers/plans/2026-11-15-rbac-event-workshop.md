@@ -71,12 +71,12 @@
 `outputs`는 초기 빈 객체, `assignment`는 초기 null이다. 상태 경로는 `.workshop-state/{runId}.json`이다.
 RG 소유 태그는 `workshop=rbac-event`, `runId={runId}`, `managedBy=workshop`이다. 세 필수 값은 일치해야 하며 추가 정책 태그는 허용한다.
 
-- [ ] **Step 1:** 정상 상태의 `show` CLI가 JSON을 반환하는 실패 테스트를 먼저 작성한다. 없는 스크립트의 비정상 종료 때문에 성공 조건이 실패하는지 확인한다.
-- [ ] **Step 2:** 최소 CLI와 상태 검증·저장을 구현하여 첫 테스트를 통과시킨다.
-- [ ] **Step 3:** 잘못된 UUID, runId/RG 불일치, 경로·명령 주입 문자열, 기존 상태 덮어쓰기 거부 테스트를 추가하고 RED → GREEN을 수행한다.
-- [ ] **Step 4:** `run_az` 경계만 모의 처리해 사용자 유형·테넌트 불일치, 다른 RG의 동일 source 시스템 토픽, 토픽 조회 403 테스트를 작성하고 RED → GREEN을 수행한다. `az account set`이나 자원 생성 명령이 실행되지 않았는지도 확인한다.
-- [ ] **Step 5:** `.workshop-state/`, `.superpowers/`, 소스 ZIP 등 실행 자료를 Git에서 제외한다. 오류를 빈 목록이나 부재로 바꾸지 않는지 확인한다.
-- [ ] **Step 6:** `.\.venv\Scripts\python.exe -m unittest discover -s .\tests -p "test_*.py" -v` 전체 PASS 후 관련 파일만 커밋한다.
+- [x] **Step 1:** 정상 상태의 `show` CLI가 JSON을 반환하는 실패 테스트를 먼저 작성한다. 없는 스크립트의 비정상 종료 때문에 성공 조건이 실패하는지 확인한다.
+- [x] **Step 2:** 최소 CLI와 상태 검증·저장을 구현하여 첫 테스트를 통과시킨다.
+- [x] **Step 3:** 잘못된 UUID, runId/RG 불일치, 경로·명령 주입 문자열, 기존 상태 덮어쓰기 거부 테스트를 추가하고 RED → GREEN을 수행한다.
+- [x] **Step 4:** `run_az` 경계만 모의 처리해 사용자 유형·테넌트 불일치, 다른 RG의 동일 source 시스템 토픽, 토픽 조회 403 테스트를 작성하고 RED → GREEN을 수행한다. `az account set`이나 자원 생성 명령이 실행되지 않았는지도 확인한다.
+- [x] **Step 5:** `.workshop-state/`, `.superpowers/`, 소스 ZIP 등 실행 자료를 Git에서 제외한다. 오류를 빈 목록이나 부재로 바꾸지 않는지 확인한다.
+- [x] **Step 6:** `.\.venv\Scripts\python.exe -m unittest discover -s .\tests -p "test_*.py" -v` 전체 PASS 후 관련 파일만 커밋한다.
 
 ### Task 2: 안전한 인프라 입력·배포 출력·소스 ZIP
 

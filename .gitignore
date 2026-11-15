@@ -6,3 +6,5 @@ __pycache__/
 .python_packages/
 local.settings.json
 infra/main.json
+.workshop-state/
+.superpowers/
