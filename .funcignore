@@ -1,0 +1,13 @@
+.git*
+.venv/
+.python-runtime/
+.worktrees/
+.superpowers/
+.python_packages/
+__pycache__/
+local.settings.json
+tests/
+docs/
+infra/
+scripts/
+README.md

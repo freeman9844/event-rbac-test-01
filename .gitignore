@@ -1,1 +1,8 @@
 .worktrees/
+.venv/
+.python-runtime/
+__pycache__/
+*.py[cod]
+.python_packages/
+local.settings.json
+infra/main.json

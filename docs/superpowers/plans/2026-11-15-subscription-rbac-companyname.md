@@ -82,7 +82,7 @@
 - 출력: `parse_event(envelope: Mapping[str, object], expected_subscription_id: str) -> RoleAssignmentEvent`; 잘못된 입력에는 `EventValidationError(ValueError)`.
 - 출력: `handle_role_assignment(event: azure.functions.EventGridEvent) -> None`; Azure 함수 이름은 `RbacAssignmentObserver`.
 
-- [ ] **Step 1: 실패할 이벤트 테스트를 작성한다.**
+- [x] **Step 1: 실패할 이벤트 테스트를 작성한다.**
 
 `test_accepts_assignment_at_each_scope_case_insensitively`는 구독, 리소스 그룹, 개별 리소스 아래의 할당 ID와 대소문자를 바꾼 ID를 각각 통과시킨다. `test_falls_back_to_resource_uri_only_without_subject`는 subject가 없을 때만 fallback을 허용한다. `test_rejects_mismatched_ids_foreign_subscription_and_url`은 각 입력에서 `EventValidationError`가 발생함을 확인한다.
 
@@ -103,13 +103,13 @@ def test_rejects_non_rbac_operation(self):
 
 추가로 잘못된 이벤트 유형, data의 잘못된 형식, 필수 eventId·시각 누락을 거부한다. 진입 함수 테스트는 잘못된 입력에서 ERROR 로그가 있고 정상 관측 로그는 없음을 확인한다.
 
-- [ ] **Step 2: 테스트가 구현 부재로 실패하는지 확인한다.**
+- [x] **Step 2: 테스트가 구현 부재로 실패하는지 확인한다.**
 
 실행: `python -m unittest discover -s .\tests -p "test_events.py" -v`
 
 기대: `rbac_monitor.events` 또는 `parse_event`가 없어 실패한다. 입력 fixture 자체의 구문 오류는 먼저 고친다.
 
-- [ ] **Step 3: 이벤트 검증과 최소 수신 함수를 구현한다.**
+- [x] **Step 3: 이벤트 검증과 최소 수신 함수를 구현한다.**
 
 `parse_event`는 `Microsoft.Resources.ResourceWriteSuccess`, `Microsoft.Authorization/roleAssignments/write`, 소스 topic과 대상 구독을 검사한다. 역할 할당 경로는 해당 구독 아래이며 마지막 리소스 유형이 `Microsoft.Authorization/roleAssignments/{guid}`여야 한다. URL, query, fragment와 경로 이탈 표현은 거부한다. 두 리소스 ID가 있으면 대소문자를 무시해 일치 여부를 확인한다.
 
@@ -117,13 +117,13 @@ def test_rejects_non_rbac_operation(self):
 
 네 가지 의존성은 `azure-functions`, `azure-identity`, `azure-core`, `requests`이다. 지원되는 릴리스 범위를 확인해 `requirements.txt`에 기록한 뒤 `python -m pip install -r .\requirements.txt`를 실행한다. 이벤트 발행 SDK, Graph 전체 SDK, 별도 계측 SDK는 추가하지 않는다.
 
-- [ ] **Step 4: 수신 함수와 이벤트 테스트를 함께 통과시킨다.**
+- [x] **Step 4: 수신 함수와 이벤트 테스트를 함께 통과시킨다.**
 
 실행: `python -m unittest tests.test_events tests.test_function_app -v`
 
 기대: 모두 PASS. 정상 수신 로그에 claims·토큰·전체 이벤트가 없고, 잘못된 입력에는 실패 로그가 있다.
 
-- [ ] **Step 5: 최소 수신 기능을 커밋한다.**
+- [x] **Step 5: 최소 수신 기능을 커밋한다.**
 
 대상 파일만 stage한 뒤 커밋 메시지 `feat: add validated RBAC event receiver`를 사용한다. 세션에 적용되는 필수 Git 트레일러를 포함한다.
 
