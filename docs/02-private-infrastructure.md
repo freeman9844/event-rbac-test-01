@@ -1,8 +1,24 @@
 # 02. 사설 Storage 인프라 배포
 
-⏱️ **25분** · 목표: 소유권이 명확한 RG와 사설 Storage 경로를 구성합니다.
+> 소유 태그가 있는 전용 RG에 Function과 사설 Storage 경로를 배포합니다.
 
 이전: [01. 준비·상태 복구](01-prerequisites.md) · [홈](../README.md) · 다음: [03. 코드 게시](03-function-deployment.md)
+
+## 목표
+
+- 이번 실행의 새 RG를 만들고 what-if에서 변경 범위를 검토합니다.
+- 구독 Reader를 만들지 않는 워크숍 매개변수로 배포하고 출력을 보관합니다.
+- Storage 차단·PE 승인·DNS 링크·Function VNet 통합을 확인합니다.
+
+## 예상 소요 시간
+
+25분. 인프라 배포와 Private Endpoint 준비에 따라 늘어날 수 있습니다.
+
+## 시작 전 상태
+
+- Module 01을 마쳤고 `STATE_FILE`·공통 함수를 복구할 수 있습니다.
+- 신규 실행이면 RG를 아직 생성하지 않았습니다. 이미 만든 RG를 재개한다면 생성 블록을 건너뜁니다.
+- 상속 정책, 필수 태그와 전용 VNet `10.76.0.0/16` 사용을 검토했습니다.
 
 ## 1. 전용 RG 만들기
 
@@ -131,6 +147,16 @@ Storage는 `Disabled / false / false / TLS1_2`, 두 PE는 `Approved`, 두 DNS zo
 ⚠️ **주의**
 
 Function HTTPS 인바운드와 Application Insights 수집·조회 경로는 공개 엔드포인트입니다. 익명 HTTP 함수는 제공하지 않지만 “전체 사설”이라고 설명하지 않습니다. 운영 인바운드 사설화는 Event Grid 전달 방식까지 별도 설계해야 합니다.
+
+## 트러블슈팅
+
+| 증상 | 확인과 다음 행동 |
+|---|---|
+| what-if에 구독 범위 Reader가 보입니다 | `assignSubscriptionReader=false`가 빠지지 않았는지 확인하고 배포를 중단합니다. |
+| 정책이 배포를 거부합니다 | 실패한 배포의 정책 ID·효과·관리 그룹 상속을 관리자와 검토합니다. 제한을 해제해 우회하지 않습니다. |
+| `capture`가 실패합니다 | 이번 배포의 성공 여부와 상태 파일을 확인합니다. 성공한 동일 배포의 capture를 재시도하며 출력을 추정하지 않습니다. |
+| PE가 Approved가 아니거나 DNS 링크가 없습니다 | 해당 연결 승인과 이번 VNet 링크를 확인하고 Module 03으로 진행하지 않습니다. |
+| 배포가 실패했지만 RG에 자원이 남았습니다 | 같은 상태 파일로 [Module 06의 preview](06-cleanup-production.md)를 수행합니다. 실패를 무과금·미생성으로 해석하지 않습니다. |
 
 ## 완료 체크
 

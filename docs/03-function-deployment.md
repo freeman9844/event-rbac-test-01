@@ -1,8 +1,24 @@
 # 03. Function 코드 게시
 
-⏱️ **15분** · 목표: 비공개 파일 없이 Python 코드를 Linux 원격 빌드로 게시합니다.
+> 최소 Python 소스를 Linux 원격 빌드로 게시하고 실제 트리거 등록을 확인합니다.
 
 이전: [02. 인프라](02-private-infrastructure.md) · [홈](../README.md) · 다음: [04. 이벤트 연결](04-event-grid.md)
+
+## 목표
+
+- 상태·증거·로컬 의존성이 없는 소스 전용 ZIP을 만듭니다.
+- 사설 Storage 구성을 유지하면서 Linux 원격 빌드로 게시합니다.
+- `RbacAssignmentObserver` 등록을 확인한 뒤에만 다음 장으로 진행합니다.
+
+## 예상 소요 시간
+
+15분. 원격 빌드와 관리 ID 권한 전파가 지연되면 더 걸릴 수 있습니다.
+
+## 시작 전 상태
+
+- Module 02의 배포와 출력 capture를 완료했습니다.
+- PE 승인, DNS 링크와 Function VNet 통합을 확인했습니다.
+- Module 01의 `STATE_FILE`·공통 함수를 같은 세션에서 사용할 수 있습니다.
 
 ## 1. 최소 소스 ZIP과 원격 빌드
 
@@ -58,7 +74,7 @@ inspect_published_receiver
 
 Function의 설정은 `EXPECTED_SUBSCRIPTION_ID`, 관리 ID 기반 `AzureWebJobsStorage__...`, Entra 인증 Application Insights 게시로 구성됩니다. 키·연결 문자열 전체를 터미널에 출력하는 명령은 사용하지 않습니다.
 
-## 3. 사설 Storage 게시 실패 진단
+## 트러블슈팅
 
 👁️ **설명**
 
