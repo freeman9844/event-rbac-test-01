@@ -30,7 +30,7 @@ class OperatorClient:
 
     def request(self, method: str, path: str, *, body: dict | None = None,
                 params: dict | None = None, missing_ok: bool = False,
-                arm: bool = False) -> dict | None:
+                arm: bool = False, advanced: bool = False) -> dict | None:
         host = "https://management.azure.com" if arm else "https://graph.microsoft.com"
         ws.require(path.startswith("/") and not path.startswith("//")
                    and not urlsplit(path).scheme and not urlsplit(path).netloc,
@@ -43,10 +43,13 @@ class OperatorClient:
                    == self.state["tenantId"].lower()
                    and isinstance(token.get("accessToken"), str) and token["accessToken"],
                    "Wrong token tenant or missing credential.")
+        headers = {"Authorization": "Bearer " + token["accessToken"]}
+        if advanced:
+            headers["ConsistencyLevel"] = "eventual"
         try:
             result = requests.request(
                 method, host + path, params=params, json=body,
-                headers={"Authorization": "Bearer " + token["accessToken"]},
+                headers=headers,
                 timeout=(5, 30), allow_redirects=False,
             )
         except requests.RequestException:
@@ -64,14 +67,15 @@ class OperatorClient:
         ws.require(isinstance(value, dict), "API returned a non-object response.")
         return value
 
-    def items(self, path: str, params: dict | None = None) -> list[dict]:
+    def items(self, path: str, params: dict | None = None, *,
+              advanced: bool = False) -> list[dict]:
         endpoint = urlsplit(path).path
         visited = set()
         values = []
         while path:
             ws.require(path not in visited, "Repeated Graph pagination URL.")
             visited.add(path)
-            page = self.request("GET", path, params=params)
+            page = self.request("GET", path, params=params, advanced=advanced)
             ws.require(isinstance(page, dict) and isinstance(page.get("value"), list)
                        and all(isinstance(item, dict) for item in page["value"]),
                        "Invalid Graph collection.")
@@ -107,7 +111,7 @@ def _preflight(base: dict, client: OperatorClient) -> dict:
                "Graph caller is not this run's operator.")
     roles = {role.get("roleTemplateId") for role in client.items(
         "/v1.0/me/transitiveMemberOf/microsoft.graph.directoryRole",
-        {"$select": "roleTemplateId"})}
+        {"$select": "roleTemplateId", "$count": "true"}, advanced=True)}
     ws.require(GLOBAL_ADMIN in roles or {USER_ADMIN, PRIVILEGED_ADMIN} <= roles,
                "Entra administrator required: User Administrator + Privileged Role "
                "Administrator, or an already authorized Global Administrator.")
@@ -232,6 +236,17 @@ def _grant(base: dict, exp: dict, client: OperatorClient) -> dict | None:
     return None
 
 
+def _wait_for_grant(base: dict, exp: dict, client: OperatorClient) -> dict:
+    deadline = monotonic() + 180
+    while True:
+        grant = _grant(base, exp, client)
+        if grant is not None:
+            return grant
+        ws.require(monotonic() < deadline,
+                   "Graph permission not confirmed; preserve intent and retry cleanup.")
+        sleep(3)
+
+
 def prepare(state_file: Path, company_name: str) -> dict:
     ws.require(isinstance(company_name, str) and company_name.strip()
                and len(company_name) <= 64, "companyName must contain 1-64 characters.")
@@ -297,7 +312,7 @@ def prepare(state_file: Path, company_name: str) -> dict:
                        "Missing Graph permission response.")
             exp["grant"]["id"] = granted["id"]
             _save(state_file, base, exp)
-        ws.require(_grant(base, exp, client) is not None, "Graph permission not confirmed.")
+        _wait_for_grant(base, exp, client)
         _save(state_file, base, exp)
         return {"prepared": True, "userId": exp["user"]["id"], "companyName": company_name}
     except (ws.WorkshopError, OSError, KeyboardInterrupt) as error:
@@ -329,14 +344,19 @@ def cleanup(state_file: Path) -> dict:
     try:
         grant = _grant(base, exp, client)
         if not exp["grant"]["existing"]:
-            ws.require(grant is None or exp["grant"]["attempted"],
+            record = exp["grant"]
+            ws.require((grant is None and record["id"] is None) or record["attempted"],
                        "Unrecorded Graph permission; refusing adoption.")
+            if (grant is None and record["id"] is None
+                    and record["attempted"] and not record["removed"]):
+                grant = _wait_for_grant(base, exp, client)
             if grant is not None:
-                exp["grant"]["id"] = grant["id"]
+                record["id"] = grant["id"]
                 _save(state_file, base, exp)
+            if record["id"] is not None:
                 client.request("DELETE", "/v1.0/servicePrincipals/"
-                               + exp["grant"]["resourceId"] + "/appRoleAssignedTo/"
-                               + quote(grant["id"], safe=""), missing_ok=True)
+                               + record["resourceId"] + "/appRoleAssignedTo/"
+                               + quote(record["id"], safe=""), missing_ok=record["removed"])
             ws.wait_absent(lambda: _grant(base, exp, client) is not None, "Graph permission")
             exp["grant"]["removed"] = True
             _save(state_file, base, exp)

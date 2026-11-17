@@ -35,6 +35,9 @@ class Cloud:
         self.row_overrides = {}
         self.query_snapshots = []
         self.lost_role_response = False
+        self.pending_grant_reads = 0
+        self.hide_grants = False
+        self.lost_grant_response = False
         reader_id = base["outputs"]["subscriptionReaderAssignmentId"]
         self.roles[reader_id] = {"id": reader_id, "properties": {
             "principalId": base["outputs"]["managedIdentityPrincipalId"],
@@ -42,10 +45,11 @@ class Cloud:
             "roleDefinitionId": workshop.role_definition(base),
         }}
 
-    def items(self, path, params=None):
-        return self.request("GET", path, params=params)["value"]
+    def items(self, path, params=None, *, advanced=False):
+        return self.request("GET", path, params=params, advanced=advanced)["value"]
 
-    def request(self, method, path, *, body=None, params=None, missing_ok=False, arm=False):
+    def request(self, method, path, *, body=None, params=None, missing_ok=False,
+                arm=False, advanced=False):
         if method != "GET":
             self.writes.append((method, path))
         if arm:
@@ -70,10 +74,17 @@ class Cloud:
                     "appRoles": [{"id": APP_ROLE_ID, "value": "User.Read.All",
                                   "isEnabled": True, "allowedMemberTypes": ["Application"]}]}
         if path.endswith("/appRoleAssignments"):
+            if self.hide_grants:
+                return {"value": []}
+            if self.pending_grant_reads:
+                self.pending_grant_reads -= 1
+                return {"value": []}
             return {"value": copy.deepcopy(self.grants)}
         if path.endswith("/appRoleAssignedTo") and method == "POST":
             grant = {"id": GRANT_ID, **body}
             self.grants.append(grant)
+            if self.lost_grant_response:
+                raise workshop.WorkshopError("simulated lost grant response")
             return grant
         if "/appRoleAssignedTo/" in path and method == "DELETE":
             if self.fail_grant_delete:
@@ -249,6 +260,59 @@ class CompanyNameWorkshopTests(unittest.TestCase):
         companyname.cleanup(self.path)
         self.assertEqual(len(self.cloud.grants), 1)
 
+    def test_cleanup_deletes_recorded_grant_despite_stale_collection(self):
+        companyname.prepare(self.path, "company001")
+        self.cloud.hide_grants = True
+        self.assertTrue(companyname.cleanup(self.path)["complete"])
+        self.assertEqual(self.cloud.grants, [])
+
+    def test_prepare_waits_for_grant_replication(self):
+        original_request = self.cloud.request
+
+        def delayed_grant(method, path, **kwargs):
+            result = original_request(method, path, **kwargs)
+            if method == "POST" and path.endswith("/appRoleAssignedTo"):
+                self.cloud.pending_grant_reads = 1
+            return result
+
+        with patch.object(self.cloud, "request", side_effect=delayed_grant):
+            with patch("scripts.companyname.sleep"):
+                self.assertTrue(companyname.prepare(self.path, "company001")["prepared"])
+        companyname.cleanup(self.path)
+
+    def test_unacknowledged_grant_delete_keeps_cleanup_incomplete(self):
+        companyname.prepare(self.path, "company001")
+        self.cloud.hide_grants = True
+        original_request = self.cloud.request
+
+        def invisible_grant(method, path, **kwargs):
+            if method == "DELETE" and "/appRoleAssignedTo/" in path:
+                if kwargs.get("missing_ok"):
+                    return None
+                raise workshop.WorkshopError("DELETE API failed: HTTP 404.")
+            return original_request(method, path, **kwargs)
+
+        with patch.object(self.cloud, "request", side_effect=invisible_grant):
+            with self.assertRaisesRegex(workshop.WorkshopError, "cleanup incomplete"):
+                companyname.cleanup(self.path)
+        self.assertFalse(self.companion()["grant"]["removed"])
+        self.assertEqual(len(self.cloud.grants), 1)
+
+    def test_unknown_grant_after_response_loss_is_not_declared_removed(self):
+        self.cloud.lost_grant_response = True
+        self.cloud.hide_grants = True
+        with patch("scripts.companyname.monotonic", side_effect=[0, 181]):
+            with self.assertRaisesRegex(workshop.WorkshopError, "cleanup also failed"):
+                companyname.prepare(self.path, "company001")
+        report = json.loads((self.path.parent / "abcd1234"
+                             / "companyname-cleanup.json").read_text())
+        self.assertFalse(report["complete"])
+        self.assertEqual(len(self.cloud.grants), 1)
+        self.assertFalse(self.companion()["grant"]["removed"])
+        self.cloud.hide_grants = False
+        self.assertTrue(companyname.cleanup(self.path)["complete"])
+        self.assertEqual(self.cloud.grants, [])
+
     def test_invalid_company_name_never_writes(self):
         for value in ("", "   ", "a" * 65):
             with self.subTest(value=value), self.assertRaises(workshop.WorkshopError):
@@ -329,6 +393,33 @@ class CompanyNameWorkshopTests(unittest.TestCase):
 
 
 class OperatorTransportTests(unittest.TestCase):
+    def test_role_cast_uses_advanced_query_on_every_page(self):
+        state = state_fixture()
+        token = {"tenant": state["tenantId"], "accessToken": "private-token"}
+        role_path = "/v1.0/me/transitiveMemberOf/microsoft.graph.directoryRole"
+        pages = [
+            {"id": state["userObjectId"]},
+            {"value": [], "@odata.nextLink":
+             "https://graph.microsoft.com" + role_path + "?$count=true&$skiptoken=next"},
+            {"value": [{"roleTemplateId": GLOBAL_ADMIN}]},
+            {"value": [{"id": state["tenantId"], "verifiedDomains": [{
+                "name": "workshop.onmicrosoft.com", "isInitial": True, "type": "Managed",
+            }]}]},
+            {"id": GRAPH_ID, "appId": "00000003-0000-0000-c000-000000000000",
+             "appRoles": [{"id": APP_ROLE_ID, "value": "User.Read.All", "isEnabled": True,
+                           "allowedMemberTypes": ["Application"]}]},
+        ]
+        with patch.object(workshop, "scoped", return_value=token):
+            with patch("requests.request", side_effect=[
+                    response(body=page) for page in pages]) as send:
+                ready = companyname._preflight(state, companyname.OperatorClient(state))
+        self.assertTrue(ready["ready"])
+        calls = [call for call in send.call_args_list if role_path in call.args[1]]
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0].kwargs["params"].get("$count"), "true")
+        for call in calls:
+            self.assertEqual(call.kwargs["headers"].get("ConsistencyLevel"), "eventual")
+
     def test_operator_client_rejects_redirects_without_exposing_response(self):
         state = state_fixture()
         token = {"tenant": state["tenantId"], "accessToken": "private-token"}
