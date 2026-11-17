@@ -30,7 +30,8 @@ def azure_base(args):
     if args[:2] == ["account", "show"]:
         return {"id": state["subscriptionId"], "tenantId": state["tenantId"],
                 "user": {"type": "user"}}
-    if args[:3] == ["ad", "signed-in-user", "show"]:
+    if (args[:3] == ["rest", "--method", "get"]
+            and "https://graph.microsoft.com/v1.0/me?$select=id" in args):
         return {"id": state["userObjectId"]}
     if args[:2] == ["group", "exists"]:
         return True

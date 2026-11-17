@@ -195,7 +195,8 @@ def check_identity(state: dict) -> str:
             and account.get("id", "").lower() == state["subscriptionId"].lower()
             and account.get("tenantId", "").lower() == state["tenantId"].lower()
             and account.get("user", {}).get("type") == "user", "Wrong account or tenant.")
-    user = scoped(state, ["ad", "signed-in-user", "show"])
+    user = scoped(state, ["rest", "--method", "get", "--url",
+                          "https://graph.microsoft.com/v1.0/me?$select=id"])
     require(isinstance(user, dict), "Invalid signed-in user response.")
     return uuid_value(user.get("id"))
 

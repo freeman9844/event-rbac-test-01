@@ -33,6 +33,22 @@ def state_fixture():
 
 
 class StateTests(unittest.TestCase):
+    def test_identity_uses_subscription_scoped_graph_endpoint(self):
+        state = state_fixture()
+
+        def azure(args):
+            self.assertIn("--subscription", args)
+            if args[:3] == ["ad", "signed-in-user", "show"]:
+                raise workshop.WorkshopError("unrecognized arguments: --subscription")
+            if args[:3] == ["rest", "--method", "get"]:
+                self.assertEqual(args[args.index("--url") + 1],
+                                 "https://graph.microsoft.com/v1.0/me?$select=id")
+                return {"id": state["userObjectId"]}
+            return self.azure(args)
+
+        with patch.object(workshop, "run_az", side_effect=azure):
+            self.assertEqual(workshop.check_identity(state), state["userObjectId"])
+
     def test_show_prints_a_valid_restored_run_without_cloud_access(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "abcd1234.json"
@@ -89,7 +105,8 @@ class StateTests(unittest.TestCase):
         if args[:2] == ["account", "show"]:
             return {"id": state["subscriptionId"], "tenantId": state["tenantId"],
                     "user": {"type": "user"}}
-        if args[:3] == ["ad", "signed-in-user", "show"]:
+        if (args[:3] == ["rest", "--method", "get"]
+                and "https://graph.microsoft.com/v1.0/me?$select=id" in args):
             return {"id": state["userObjectId"]}
         if args[:2] == ["rest", "--method"]:
             return {"value": []}
@@ -145,7 +162,8 @@ class StateTests(unittest.TestCase):
                     value["tenantId"] = "44444444-4444-4444-8444-444444444444"
                 if failure == "service-principal" and args[:2] == ["account", "show"]:
                     value["user"]["type"] = "servicePrincipal"
-                if failure == "user" and args[:3] == ["ad", "signed-in-user", "show"]:
+                if (failure == "user" and args[:3] == ["rest", "--method", "get"]
+                        and "https://graph.microsoft.com/v1.0/me?$select=id" in args):
                     value["id"] = "44444444-4444-4444-8444-444444444444"
                 if failure == "tags" and args[:2] == ["group", "exists"]:
                     return True
