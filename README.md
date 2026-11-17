@@ -149,7 +149,9 @@ find .workshop-state -maxdepth 1 -type f -name '*.json' -print
 
 **2026-11-17 기존 PoC 재테스트:** 실제 역할 할당 성공 후 약 **6.52초**에 Function 수신과 실행 성공을 확인했습니다. 해당 구간 토픽 지표는 매칭 1·전달 성공 1이며, 테스트 RG와 그 내부 17개 자원 및 두 임시 Reader의 삭제·부재도 확인했습니다. [Module 05의 익명화 관측 예시](docs/05-rbac-event-validation.md#4-실제-관측-예시)에서 플로우와 시각을 볼 수 있습니다.
 
-이 결과는 **기존 PoC 경로**의 재검증입니다. **새 워크숍의 전체 Cloud Shell 절차와 `scripts/workshop.py`를 실제 Azure에 재배포하여 검증한 것은 아닙니다.** 보조 도구·문서 명령의 자동 검증과 기존 실측을 구분하며, 개발 검증 범위는 [개발 안내](docs/development.md)에 명시합니다. 이번 문서 개편을 위해 Azure 자원을 추가 생성하지 않습니다.
+위 6.52초 결과는 **기존 수신 전용 PoC 경로**입니다. 이후 별도로 승인받은 **신규 사용자 회사명 보강 실측**에서는 실제 Function 로그의 `companyName=company001`과 동일 성공 요청을 확인했습니다. 쓰기 성공 후 보강까지 약 **7.32초**였고, 사용자·Graph 권한·두 Reader·전용 RG의 정리와 독립 부재 조회까지 완료했습니다. [선택 실습 05A의 실제 흐름과 결과](docs/05a-companyname-validation.md#검증-상태)를 참고하세요.
+
+회사명 실측은 Windows PowerShell에서 공통 워크숍 CLI·Bicep와 Linux 원격 빌드를 실행한 결과입니다. **전체 Cloud Shell Bash 대화형 절차를 실제 수행한 것은 아닙니다.** 보조 도구·문서 명령 자동 검사와 실제 검증 범위는 [개발 안내](docs/development.md)에 구분합니다.
 
 Event Grid는 중복·역순 전달이 가능하고 로그에는 지연·누락이 있을 수 있습니다. 이 구성은 손실 없는 감사 원장이 아니며, PIM 전체 수명주기·Entra 디렉터리 역할·그룹 구성원 확장은 다루지 않습니다.
 

@@ -59,7 +59,7 @@ git --no-pager diff --check
 
 **두 관측 모두 성능 보장이나 현재 워크숍 전체의 실제 재배포 결과가 아닙니다.** Event Grid eventId와 Activity correlationId가 같았던 관측을 일반 불변 조건으로 쓰지 않습니다. 보조 도구의 Cloud Shell 전체 절차는 모의 CLI·상태·패키징·정리 테스트와 템플릿 컴파일 등으로 검증하며, 실제 종단 간 Azure 재배포는 별도 승인·실행이 필요합니다.
 
-2026-11-17 문서 개편은 `aci-basic-workshop-01`의 학습 목표·시간표·모듈별 시작 상태·주의·완료 체크·트러블슈팅 색인 형식을 참고합니다. 기존 Function·Bicep·보조 도구와 실습 명령은 변경하지 않으며, 이 문서 작업 때문에 Azure 자원을 새로 만들지 않습니다.
+2026-11-17의 ACI 스타일 문서 개편은 `aci-basic-workshop-01`의 학습 목표·시간표·모듈별 시작 상태·주의·완료 체크·트러블슈팅 색인 형식을 참고했습니다. 당시 문서 작업은 기존 Function·Bicep·보조 도구를 변경하거나 Azure 자원을 생성하지 않았습니다. 이후 승인받아 구현·실행한 회사명 보강은 아래의 별도 검증입니다.
 
 ## 한정 정적 검사
 
@@ -74,6 +74,12 @@ git --no-pager diff --check
 [05A](05a-companyname-validation.md)는 기초 과정과 분리된 신규 사용자 실험입니다. `ENABLE_IDENTITY_ENRICHMENT=true`일 때만 관리 ID 기반 ARM·Graph 조회를 수행합니다. Graph의 `$select`에 `companyName`을 포함하고 `RbacRoleAssignmentObserved`와 동일 성공 요청을 검증합니다. 관리자용 사용자 생성·권한 부여 코드는 Function 패키지에 포함하지 않습니다.
 
 `scripts/companyname.py`는 `<runId>-companyname.json`을 별도로 사용하며 기초 상태의 실행자·assignment를 덮어쓰지 않습니다. 기존 Activity Log 증거 헬퍼에는 선택적 대상 인자를 추가했으며 기본 호출의 자기 계정 검사는 유지합니다. 실제 API는 HTTP/CLI 경계에서 모의 처리하고 생성 응답 유실·다른 회사명·다른 요청 ID·부분 정리 실패를 테스트합니다.
+
+2026-11-17에는 새 임시 환경을 실제 배포하여 신규 사용자 `companyName=company001`을 검증했습니다. Windows PowerShell에서 워크숍 상태·패키징·고급 실험·정리 CLI, Bicep 및 Linux 원격 빌드를 사용했습니다. 실제 Function 관리 ID의 ARM·Graph 보강 결과와 동일 성공 AppRequests를 대조했으며, 쓰기 성공 → 수신 약 5.03초, 쓰기 성공 → 보강 약 7.32초, 보강 → ingestion 약 33.38초였습니다. 상세 시각과 120초 비-RBAC 대조는 [05A 검증 상태](05a-companyname-validation.md#검증-상태)에 있습니다. Cloud Shell Bash 전체 대화형 수행과는 구분합니다.
+
+신규 사용자·이번 Graph 권한·테스트 Reader를 먼저 제거한 뒤 Function 구독 Reader·전용 RG·소유 구독 배포 기록 두 건까지 정리했습니다. 최종 독립 조회는 08:55:08 UTC에 완료했으며, 사용자 활성 객체의 부재와 soft-delete 항목을 확인했습니다. 영구 삭제나 기존 사용자·권한 변경은 하지 않았습니다.
+
+전체 자동 테스트는 94개가 통과했습니다. 실제 CLI에서 드러난 `ad signed-in-user show --subscription` 미지원과 토큰 조회의 `--subscription`/`--tenant` 동시 사용 금지를 회귀 테스트로 고쳤습니다. 실행자 조회는 구독 지정 Graph `/me` REST로 수행하며 반환 테넌트 검증도 유지합니다. Graph 역할 멤버십 cast는 `$count=true`와 페이지별 `ConsistencyLevel: eventual`을 사용합니다. Graph grant 전파를 제한적으로 기다리고, 생성 ID가 있으면 목록의 일시적 누락과 무관하게 삭제하며, 생성·삭제 확인이 불확실하면 정리 완료로 처리하지 않습니다.
 
 - [보강 및 신규 사용자 승인 설계](superpowers/specs/2026-11-15-subscription-rbac-companyname-design.md#14-2026-11-17-승인된-companyname-전용-검증-확장)
 - [보강 및 실제 검증 계획](superpowers/plans/2026-11-17-companyname-live-validation.md)

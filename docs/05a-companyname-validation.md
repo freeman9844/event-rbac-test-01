@@ -193,7 +193,32 @@ cleanup_companyname
 
 ## 검증 상태
 
-새 보강·실험 경로의 로컬 테스트는 실제 Azure 호출 없이 수행합니다. 이 절차의 실제 Azure 실측 결과는 실행 증거가 확보된 경우에만 별도로 기록합니다. [기존 수신 전용 PoC 실측](05-rbac-event-validation.md#4-실제-관측-예시)을 회사명 검증 결과로 재사용하지 않습니다.
+**2026-11-17 실제 Azure 검증에서 `companyName=company001`을 확인했습니다.** 승인된 임시 환경을 새로 배포하고, 실행자와 다른 로그인 차단 사용자에게 회사명을 설정한 뒤 이번 RG의 Reader 한 건을 할당했습니다. 라이선스는 부여하지 않았습니다. Function 관리 ID의 ARM·Graph 보강 로그를 동일 성공 AppRequests와 대조했습니다. 운영자 Graph 조회나 합성 이벤트를 성공 근거로 대신하지 않았습니다.
+
+```text
+새 사용자(company001)에 RG Reader 할당
+  → 구독 소스 Event Grid의 RBAC 쓰기 필터
+  → Function 수신
+  → 관리 ID로 ARM 할당·역할 조회
+  → Graph /users/{principalId}?$select=...,companyName
+  → RbacRoleAssignmentObserved(company001) + 동일 성공 요청
+```
+
+| 단계 | 실제 UTC 시각 | 측정 |
+|---|---|---|
+| Activity Log 역할 할당 쓰기 성공 | 08:38:39.3378203 | 시작 |
+| `RbacRoleAssignmentReceived` | 08:38:44.3644211 | 쓰기 성공 후 약 5.03초 |
+| `RbacRoleAssignmentObserved` | 08:38:46.6532754 | 쓰기 성공 후 약 7.32초 |
+| 보강 로그 ingestion | 08:39:20.032363 | 보강 후 약 33.38초 |
+| 동일 AppRequests | `Success=true` | 처리 약 2.31초 |
+
+대상 사용자 ID, Reader 정의·이름, 이번 RG scope, `company001`, `enrichmentStatus=succeeded`를 모두 대조했습니다. 수신·보강 로그와 성공 요청의 InvocationId·OperationId도 일치했습니다. 실제 식별자와 원본 증거는 비공개로 보관합니다.
+
+비-RBAC 대조로 소유 태그를 보존한 RG 태그 갱신 한 번의 Activity 성공을 확인했습니다. **08:45:11~08:47:11 UTC의 120초 관측창**, 종료 후 최소 60초의 수집 대기 뒤 해당 이벤트의 추적 로그와 이 Function의 요청은 각각 0건이었습니다. 토픽 전체 집계는 게시 15·매칭 1·전달 성공 1이며, 전달 시도 실패는 **수치 표본 없음**이지 측정된 0이 아닙니다. 집계 지표만으로 개별 이벤트를 증명하거나 제한된 부재 관측을 무기한 전달 보장으로 해석하지 않습니다.
+
+**08:55:08 UTC 최종 독립 조회:** 테스트 Reader, 이번 Graph `User.Read.All`, Function 구독 Reader, 관리 ID, 전용 RG 및 소유한 구독 배포 기록 두 건의 부재를 확인했습니다. 신규 사용자는 활성 객체에서 없어졌고 삭제된 항목에 남아 있어 일반 삭제임을 확인했습니다. 사용자 영구 삭제는 수행하지 않았습니다.
+
+이번 실측은 Windows PowerShell에서 동일 워크숍 CLI와 Bicep·Linux 원격 빌드를 사용한 선택형 보강 경로입니다. 전체 Cloud Shell Bash 대화형 절차를 실제 실행한 결과는 아니며, Bash 문서 명령은 별도의 자동 검사로 검증합니다. 로컬 전체 테스트 94개와 Bicep 빌드도 통과했습니다. [기존 수신 전용 PoC 실측](05-rbac-event-validation.md#4-실제-관측-예시)과 이 회사명 보강 실측을 구분하며, 지연 수치는 성능 보장이 아닙니다.
 
 ## 완료 체크
 
