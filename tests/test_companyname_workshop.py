@@ -393,6 +393,20 @@ class CompanyNameWorkshopTests(unittest.TestCase):
 
 
 class OperatorTransportTests(unittest.TestCase):
+    def test_operator_token_avoids_conflicting_subscription_and_tenant_options(self):
+        state = state_fixture()
+
+        def cli(args):
+            self.assertIn("--subscription", args)
+            if "--tenant" in args:
+                raise workshop.WorkshopError("Specify only one of subscription and tenant")
+            return {"tenant": state["tenantId"], "accessToken": "private-token"}
+
+        with patch.object(workshop, "run_az", side_effect=cli):
+            with patch("requests.request", return_value=response(body={"id": USER_ID})):
+                user = companyname.OperatorClient(state).request("GET", "/v1.0/me")
+        self.assertEqual(user["id"], USER_ID)
+
     def test_role_cast_uses_advanced_query_on_every_page(self):
         state = state_fixture()
         token = {"tenant": state["tenantId"], "accessToken": "private-token"}

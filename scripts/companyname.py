@@ -36,8 +36,7 @@ class OperatorClient:
                    and not urlsplit(path).scheme and not urlsplit(path).netloc,
                    "Unsafe API path.")
         token = ws.scoped(self.state, [
-            "account", "get-access-token", "--tenant", self.state["tenantId"],
-            "--resource", host,
+            "account", "get-access-token", "--resource", host,
         ])
         ws.require(isinstance(token, dict) and token.get("tenant", "").lower()
                    == self.state["tenantId"].lower()
