@@ -33,7 +33,8 @@ git --no-pager diff --check
 | 파라미터 | 기본값 | 워크숍에서 전달할 값 |
 |---|---|---|
 | `createResourceGroup` | `true` | `false` — 소유 태그가 있는 RG를 CLI로 먼저 생성 |
-| `assignSubscriptionReader` | `true` | `false` — 수신에 불필요한 구독 Reader 제외 |
+| `assignSubscriptionReader` | `true` | 기초 `false` — 수신에 불필요한 구독 Reader 제외. 선택 실습 05A는 명시적 `true` |
+| `enableIdentityEnrichment` | `false` | 기초 `false`; 선택 실습에서 ARM/Graph 권한 준비 후 `true` |
 | `enableEventSubscription` | `false` | 인프라 단계 false / 코드 게시·등록 이후 true |
 
 `enableEventSubscription=false`로 재배포해도 기존 이벤트 구독은 삭제되지 않습니다. `assignSubscriptionReader=false`도 이미 생성한 구독 Reader를 제거하지 않습니다. `capture`는 이전에 기록한 Reader가 실제로 남아 있거나 부재 조회가 실패하면 해당 ID를 새 빈 출력으로 덮어쓰지 않습니다. 구독 수준 Reader는 RG 삭제에 따라 자동 제거되지 않으므로 과거 PoC·수동 호출은 해당 실행의 정확한 ID와 소유권을 별도로 확인해야 합니다. 현재 워크숍 도구에 과거 실행의 RG·토픽·ID를 넣지 않습니다.
@@ -68,7 +69,16 @@ git --no-pager diff --check
 
 제외 범위는 클라이언트 인증서·HTTP/2·Azure Services 우회 권고, ARM 동적 이름 해석, 복제·인스턴스·가용 영역·별도 상태 확인과 Function 공개 수신 관련 PoC 제약입니다. Storage 공개 접근 차단은 제외하지 않았습니다. 전체 운영 보안·컴플라이언스 통과를 뜻하지 않으며 전역 skip 파일을 만들지 않습니다.
 
-## 설계 자료
+## 선택형 companyName 확장
+
+[05A](05a-companyname-validation.md)는 기초 과정과 분리된 신규 사용자 실험입니다. `ENABLE_IDENTITY_ENRICHMENT=true`일 때만 관리 ID 기반 ARM·Graph 조회를 수행합니다. Graph의 `$select`에 `companyName`을 포함하고 `RbacRoleAssignmentObserved`와 동일 성공 요청을 검증합니다. 관리자용 사용자 생성·권한 부여 코드는 Function 패키지에 포함하지 않습니다.
+
+`scripts/companyname.py`는 `<runId>-companyname.json`을 별도로 사용하며 기초 상태의 실행자·assignment를 덮어쓰지 않습니다. 기존 Activity Log 증거 헬퍼에는 선택적 대상 인자를 추가했으며 기본 호출의 자기 계정 검사는 유지합니다. 실제 API는 HTTP/CLI 경계에서 모의 처리하고 생성 응답 유실·다른 회사명·다른 요청 ID·부분 정리 실패를 테스트합니다.
+
+- [보강 및 신규 사용자 승인 설계](superpowers/specs/2026-11-15-subscription-rbac-companyname-design.md#14-2026-11-17-승인된-companyname-전용-검증-확장)
+- [보강 및 실제 검증 계획](superpowers/plans/2026-11-17-companyname-live-validation.md)
+
+## 기존 워크숍 설계 자료
 
 - [승인된 워크숍 설계](superpowers/specs/2026-11-15-rbac-event-workshop-design.md)
 - [구현 계획](superpowers/plans/2026-11-15-rbac-event-workshop.md)

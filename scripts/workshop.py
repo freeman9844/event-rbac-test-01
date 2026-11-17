@@ -465,8 +465,11 @@ def write_evidence(state_file: Path, state: dict, name: str, value: object) -> N
     save_json(directory / f"{name}.json", value)
 
 
-def activity_evidence(state: dict, start: str, end: str) -> dict:
-    assignment = state["assignment"]["id"]
+def activity_evidence(state: dict, start: str, end: str, *,
+                      assignment_id: str | None = None,
+                      principal_id: str | None = None) -> dict:
+    assignment = assignment_id if assignment_id is not None else state["assignment"]["id"]
+    expected_principal = principal_id if principal_id is not None else state["userObjectId"]
     raw = scoped(state, ["monitor", "activity-log", "list", "--resource-id", assignment,
                          "--start-time", start, "--end-time", end, "--max-events", "1000"])
     require(isinstance(raw, list), "Invalid Activity Log response.")
@@ -500,7 +503,7 @@ def activity_evidence(state: dict, start: str, end: str) -> dict:
             properties = body.get("properties")
             require(isinstance(properties, dict), "Missing Activity request properties.")
             properties = {key.lower(): value for key, value in properties.items()}
-            require(str(properties.get("principalid", "")).lower() == state["userObjectId"].lower()
+            require(str(properties.get("principalid", "")).lower() == expected_principal.lower()
                     and str(properties.get("roledefinitionid", "")).lower()
                     == role_definition(state).lower(), "Activity target or Reader role mismatch.")
             result["requestedPrincipalId"] = properties["principalid"]

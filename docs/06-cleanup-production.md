@@ -34,6 +34,8 @@
 
 ## 1. 삭제 preview
 
+[선택 실습 05A](05a-companyname-validation.md)를 수행했다면 먼저 해당 장의 `scripts.companyname cleanup`이 완료되어야 합니다. 이 장의 기본 정리는 신규 Entra 사용자나 Graph 권한을 추측해 삭제하지 않습니다. 05A에서는 구독 Reader가 `disabled`가 아니라 `recorded`인 것이 정상이며, 이 장에서 정확한 해당 역할까지 제거합니다.
+
 👁️ **설명**
 
 01의 `STATE_FILE`·공통 함수를 복구합니다. 같은 계정·테넌트·사용자와 전용 RG 소유 태그를 확인한 뒤, **모든 삭제 대상**의 사용자·역할·scope를 먼저 검증합니다. 확인되지 않은 대상이 하나라도 있으면 삭제를 시작하지 않습니다.

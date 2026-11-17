@@ -4,7 +4,7 @@
 
 **무엇을 확인하나요?** “누가 요청했는가”와 “누구에게 어떤 역할을 주었는가”를 구분하고, 같은 역할 할당 ID가 실제 수신 로그에 나타나는지 확인합니다. 대상 Object ID·Reader 역할·scope는 실습 수행자가 Activity Log 요청 본문과 역할 정의를 대조합니다.
 
-**범위는 이벤트 수신·로그 검증까지입니다.** Function의 사용자 표시 이름·역할명·`companyName` 자동 보강과 Microsoft Graph 애플리케이션 권한 부여는 포함하지 않습니다.
+**기본 과정은 이벤트 수신·로그 검증까지입니다.** 관리자 권한을 별도로 준비한 참가자는 [선택 실습 05A](docs/05a-companyname-validation.md)에서 새 사용자에 `companyName=company001`을 설정하고 Function의 ARM·Graph 보강을 검증할 수 있습니다. 기본 과정에는 Graph 애플리케이션 권한을 부여하지 않습니다.
 
 ---
 
@@ -68,6 +68,7 @@ Storage는 VNet·Blob/Queue Private Endpoint·Private DNS를 통해 사용합니
 | 03 | [Function 코드 게시](docs/03-function-deployment.md) | 최소 소스 ZIP, Linux 원격 빌드, 실제 함수 등록 |
 | 04 | [Event Grid 연결](docs/04-event-grid.md) | 구독 소스·쓰기 성공·작업명 필터·Function destination |
 | 05 | [실제 역할 할당과 로그 검증](docs/05-rbac-event-validation.md) | 임시 Reader의 생성·삭제, 같은 할당의 수신·실행 성공 |
+| 05A 선택 | [새 사용자의 companyName 확인](docs/05a-companyname-validation.md) | 별도 관리자 승인, 신규 사용자·Graph 보강·회사명 대조·고급 정리 |
 | 06 | [회고·정리와 운영 전환](docs/06-cleanup-production.md) | 삭제 preview, 정확한 역할·RG의 부재, 운영 한계 |
 
 세션이 바뀌면 저장소로 돌아와 **기존 상태 파일을 선택**합니다.
@@ -95,6 +96,8 @@ find .workshop-state -maxdepth 1 -type f -name '*.json' -print
 | | **합계** | **110분** |
 
 배포, RBAC 전파, 로그·지표 수집과 삭제 대기에 따라 더 걸릴 수 있습니다. 시간표가 끝났다는 이유로 cleanup 완료 확인을 생략하지 않습니다.
+
+선택 실습 05A는 추가 30~45분이며 관리자 준비 시간은 별도입니다. 새 사용자의 생성·삭제, Function 구독 Reader와 테넌트 사용자 읽기 권한에 별도 승인이 필요합니다.
 
 ---
 
@@ -154,9 +157,10 @@ Event Grid는 중복·역순 전달이 가능하고 로그에는 지연·누락�
 
 | 경로 | 역할 |
 |---|---|
-| `function_app.py`, `rbac_monitor/` | 이벤트 입력 검증과 구조화된 수신 로그 |
+| `function_app.py`, `rbac_monitor/` | 이벤트 입력 검증·수신 로그와 선택형 ARM/Graph 보강 |
 | `infra/` | 구독 배포, 사설 Storage 인프라, 이벤트 연결 |
 | `scripts/workshop.py` | 사전 점검·상태·패키징·실험·검증·안전 정리 |
+| `scripts/companyname.py` | 선택형 신규 사용자·Graph 동의·회사명 실험과 고급 정리 |
 | `tests/` | 클라우드 생성·삭제 없는 자동 테스트 |
 | `.workshop-state/` | 로컬 실행 상태·ZIP·증거. Git 및 Function 게시에서 제외 |
 
