@@ -22,6 +22,9 @@ param createResourceGroup bool = true
 @description('Keep the original PoC Reader assignment by default. The receiver-only workshop explicitly disables it.')
 param assignSubscriptionReader bool = true
 
+@description('Opt-in ARM and Graph enrichment. Requires separately prepared Graph User.Read.All consent.')
+param enableIdentityEnrichment bool = false
+
 var suffix = uniqueString(subscription().id, resourceGroupName)
 var topicName = 'evgt-${namePrefix}-${suffix}'
 var readerRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')
@@ -38,6 +41,7 @@ module workload 'workload.bicep' = {
     location: location
     namePrefix: namePrefix
     suffix: suffix
+    enableIdentityEnrichment: enableIdentityEnrichment
   }
   dependsOn: [
     resourceGroup

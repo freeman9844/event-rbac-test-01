@@ -187,7 +187,7 @@ Application Insights의 `traces`에서 JSON `message`를 해석해 대상, 역�
 
 ### 실제 Azure 통합 검증
 
-- 사용자가 승인한 구독, 테스트 사용자, 테스트 범위, 지역을 사용한다. 테스트 사용자의 `companyName`은 읽기만 하고 임의로 수정하지 않는다.
+- 사용자가 승인한 구독, 테스트 사용자, 테스트 범위, 지역을 사용한다. 기존 사용자의 `companyName`은 읽기만 하고 임의로 수정하지 않는다. 2026-11-17에 별도로 승인된 신규 테스트 사용자 생성·속성 설정 범위는 14절을 따른다.
 - 처음에는 리소스 그룹 범위에 최소 권한의 임시 Reader 할당을 만들고 Event Grid 원본 이벤트 수신부터 확인한다.
 - 가능하면 구독 및 개별 리소스 범위도 승인된 테스트 대상으로 검증한다. 검증하지 않은 범위를 검증 완료라고 표시하지 않는다.
 - 원본 역할 할당 정보, Graph의 `companyName`, Application Insights 기록이 일치해야 한다.
@@ -218,3 +218,34 @@ Application Insights의 `traces`에서 JSON `message`를 해석해 대상, 역�
 - [Azure Functions Event Grid 트리거](https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-event-grid-trigger)
 - [Azure Functions 실행 모니터링](https://learn.microsoft.com/en-us/azure/azure-functions/functions-monitoring)
 - [Event Grid 전달과 재시도](https://learn.microsoft.com/en-us/azure/event-grid/delivery-and-retry)
+
+## 14. 2026-11-17 승인된 companyName 전용 검증 확장
+
+사용자는 새 사용자에 `companyName=company001`을 설정하고 실제 RBAC 이벤트 처리 결과에서 해당 값을 확인하도록 요청했다. 신규 사용자 생성, Function 관리 ID의 구독 Reader 및 Graph 애플리케이션 권한 `User.Read.All`, 재배포 비용과 테스트 후 전체 정리를 승인했다. 관리자 작업은 별도 계정으로 전환하지 않고 **현재 계정에 필요한 Entra 역할을 관리자가 준비한 뒤** 수행하는 방식을 선택했다. 이 선택을 역할 활성화나 권한 부여 완료로 간주하지 않는다.
+
+### 접근 방식과 범위
+
+- 기존 승인대로 Event Grid → Function → ARM/Graph → Application Insights 경로를 구현한다. 운영자 CLI에서 사용자 속성만 읽는 방식은 Function 관리 ID와 이벤트 처리 경로를 검증하지 못하므로 대체 수단으로 사용하지 않는다.
+- 기존 기초 워크숍은 수신 전용으로 유지한다. `enableIdentityEnrichment` Bicep 매개변수의 기본값은 `false`, Function 설정 이름은 `ENABLE_IDENTITY_ENRICHMENT`이다. 기존 PoC의 `assignSubscriptionReader` 기본값은 변경하지 않으며, 기초 워크숍의 명시적인 `assignSubscriptionReader=false`도 유지한다.
+- 신규 실험은 선택형 고급 실습으로 제공한다. 기존 `scripts/workshop.py` 상태의 `userObjectId`는 계속 실행자이며, 자기 계정만 대상으로 하는 기초 실습의 제한을 완화하지 않는다. 새 테스트 사용자·Graph 권한·테스트 할당은 별도 상태 파일에 기록한다.
+- 새 사용자는 실행별 고유 이름을 사용하고 로그인 불가(`accountEnabled=false`), 무라이선스로 생성한다. 검증된 관리형 테넌트 도메인을 사용하며 기존 사용자를 수정하거나 재사용하지 않는다. 비밀번호는 생성 요청 시 메모리에서만 사용한다.
+
+### 권한과 실행 순서
+
+- Azure RBAC 권한과 Entra 관리자 권한을 별도로 확인한다. 사용자 생성·삭제와 Microsoft Graph 앱 역할 부여에 필요한 현재 계정의 권한이 확인되기 전에는 비용이 발생하는 신규 Azure 자원을 배포하지 않는다.
+- Microsoft Graph 앱 역할 부여에는 Privileged Role Administrator 또는 해당 작업을 허용하는 권한이 필요하다. 사용자 생성·삭제 권한도 별도로 필요하다. 지원되는 기본 역할 조합은 User Administrator와 Privileged Role Administrator이며, 이미 권한이 있는 Global Administrator도 가능하다. 더 높은 역할을 자동으로 부여하거나 PIM을 임의 활성화하지 않는다.
+- Graph API 호출자의 위임 권한도 필요하다. Function에는 사용자 생성·수정·삭제 또는 앱 역할 관리 권한을 부여하지 않는다.
+- 새 전용 RG와 Function을 보강 비활성 상태로 배포한다. Function 코드를 게시하고 읽기 권한 및 Graph 동의를 준비한 다음 보강 모드와 이벤트 연결을 활성화한다.
+- 새 사용자의 전용 RG Reader 한 건만 생성한다. **Function의 보강 로그와 성공 요청의 상관관계가 확인될 때까지 할당과 사용자를 유지**한다. 기초 실습의 즉시 삭제 순서를 복사하지 않는다.
+
+### 검증과 정리 계약
+
+- 같은 역할 할당 ID의 Activity Log 쓰기 성공과 Function의 `RbacRoleAssignmentObserved`를 확인한다. 로그의 `principalId`, Reader 역할 정의·역할명, RG `scope`, `companyName=company001`, `enrichmentStatus=succeeded`를 비교한다.
+- 보강 로그와 `AppRequests`의 `OperationId` 및 `InvocationId`가 같고 요청이 성공해야 한다. `RbacRoleAssignmentReceived`만으로 보강 성공을 판정하지 않는다.
+- 회사명 미설정, 비사용자, Graph 403/404/429를 기존 로그 계약대로 구분한다. 전체 claims, 토큰, 비밀번호, 원본 Graph 응답은 로그나 증거 파일에 저장하지 않는다.
+- 성공·실패·시간 초과·중단 경로에서 이번 테스트 Reader, 이번에 추가한 Graph 앱 역할, 새 사용자를 정리한다. 기존 권한은 삭제하지 않는다. 이후 기록된 Function 구독 Reader와 전용 RG를 기존 소유권 검사를 거쳐 정리한다.
+- 생성 요청 응답 유실을 고려해 쓰기 전에 실행별 이름과 의도한 대상을 저장한다. 소유권이 모호하면 삭제 범위를 확대하지 않고 잔여 항목과 오류를 명시한다.
+- 독립 재조회로 사용자 활성 객체, Graph 앱 역할, 두 RBAC 할당과 RG의 부재를 확인한다. 사용자 삭제는 일반 삭제이며, 삭제된 항목에서 영구 삭제하지 않는다.
+- 실제 ID와 사용자 정보가 포함된 증거는 비공개로 보관한다. 공개 문서에는 합성 예시와 확인한 결과만 반영하며, 이전 수신 전용 실측을 이번 회사명 검증 결과로 재사용하지 않는다.
+
+실행 계획: [companyName 보강 및 실제 검증](../plans/2026-11-17-companyname-live-validation.md).

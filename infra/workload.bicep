@@ -7,6 +7,9 @@ param namePrefix string
 @description('Stable, globally distinctive resource name suffix.')
 param suffix string
 
+@description('Enable identity enrichment only after preparing ARM and Microsoft Graph read permissions.')
+param enableIdentityEnrichment bool = false
+
 var storageServices = [
   'blob'
   'queue'
@@ -205,6 +208,10 @@ resource functionApp 'Microsoft.Web/sites@2024-11-01' = {
         {
           name: 'EXPECTED_SUBSCRIPTION_ID'
           value: subscription().subscriptionId
+        }
+        {
+          name: 'ENABLE_IDENTITY_ENRICHMENT'
+          value: enableIdentityEnrichment ? 'true' : 'false'
         }
         {
           name: 'AzureWebJobsStorage__accountName'

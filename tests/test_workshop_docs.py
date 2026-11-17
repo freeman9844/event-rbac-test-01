@@ -13,6 +13,7 @@ DOCUMENTS = [
     "README.md", "docs/00-azure-rbac-basics.md", "docs/01-prerequisites.md",
     "docs/02-private-infrastructure.md", "docs/03-function-deployment.md",
     "docs/04-event-grid.md", "docs/05-rbac-event-validation.md",
+    "docs/05a-companyname-validation.md",
     "docs/06-cleanup-production.md", "docs/development.md",
 ]
 BASH = (r"C:\Program Files\Git\bin\bash.exe" if os.name == "nt" else shutil.which("bash"))
