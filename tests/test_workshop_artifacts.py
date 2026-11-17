@@ -100,10 +100,11 @@ class ArtifactTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             sources = ["function_app.py", "host.json", "requirements.txt",
-                       "rbac_monitor/__init__.py", "rbac_monitor/events.py"]
+                       "rbac_monitor/__init__.py", "rbac_monitor/events.py",
+                       "rbac_monitor/azure_client.py", "rbac_monitor/processor.py"]
             excluded = ["local.settings.json", ".venv/token.py", ".python_packages/a.py",
                         ".workshop-state/run.json", "docs/guide.md", "tests/test_a.py",
-                        "rbac_monitor/__pycache__/events.pyc"]
+                        "rbac_monitor/__pycache__/events.pyc", "scripts/companyname.py"]
             for name in sources + excluded:
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
